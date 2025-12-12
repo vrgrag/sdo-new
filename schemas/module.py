@@ -5,6 +5,7 @@ from .lesson import LessonResponse
 
 
 class ModuleBase(BaseModel):
+    course_id: int
     title: str
     description: Optional[str] = None
     order: int = 0
@@ -12,10 +13,11 @@ class ModuleBase(BaseModel):
 
 
 class ModuleCreate(ModuleBase):
-    course_id: int
+    pass
 
 
 class ModuleUpdate(BaseModel):
+    course_id: Optional[int] = None
     title: Optional[str] = None
     description: Optional[str] = None
     order: Optional[int] = None

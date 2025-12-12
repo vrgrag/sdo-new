@@ -45,6 +45,12 @@ class JsonLessonRepository(ILessonRepository):
                 return LessonResponse(**l)
         return None
 
+    def get_by_module(self, module_id: int) -> List[LessonResponse]:
+        lessons = _load()
+        lessons = [l for l in lessons if l.get("module_id") == module_id]
+        lessons.sort(key=lambda x: x.get("order", 0))
+        return [LessonResponse(**l) for l in lessons]
+
     def create(self, lesson: LessonCreate) -> LessonResponse:
         lessons = _load()
         new_id = max([l["id"] for l in lessons], default=0) + 1

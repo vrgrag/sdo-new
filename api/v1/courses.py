@@ -18,7 +18,7 @@ from repositories import (
     JsonLessonRepository,
 )
 from repositories.mock.enrollment_repository import EnrollmentRepository
-
+from schemas.content import CourseContentResponse
 router = APIRouter(prefix="/courses", tags=["Courses"])
 
 
@@ -83,6 +83,30 @@ async def course_detail(
             raise HTTPException(status_code=403, detail="Нет доступа")
 
     return course
+
+@router.get("/{course_id}/content", response_model=CourseContentResponse)
+async def course_content(
+    course_id: int,
+    service: CourseService = Depends(get_course_service),
+    enrollment_repo: EnrollmentRepository = Depends(get_enrollment_repo),
+    current_user: dict = Depends(get_current_user),
+):
+    user_id = current_user["id"]
+    role = current_user["role"]
+
+    data = service.get_course_content(course_id)
+    if not data:
+        raise HTTPException(status_code=404, detail="Курс не найден")
+
+    if role == UserRole.STUDENT.value:
+        if course_id not in enrollment_repo.get_courses_for_student(user_id):
+            raise HTTPException(status_code=403, detail="Нет доступа")
+
+    if role == UserRole.TRAINER.value:
+        if course_id not in enrollment_repo.get_courses_for_trainer(user_id):
+            raise HTTPException(status_code=403, detail="Нет доступа")
+
+    return data
 
 
 @router.post("/", response_model=CourseResponse, status_code=201)

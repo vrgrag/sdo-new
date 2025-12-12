@@ -1,6 +1,7 @@
 # services/course_service.py
 from typing import List, Optional, Dict, Any
 from datetime import datetime
+from schemas.content import CourseContentResponse, ModuleContentResponse, LessonItem
 
 from schemas import (
     CourseResponse,
@@ -111,6 +112,67 @@ class CourseService:
             module.lessons = enriched_lessons
 
         return modules
+
+    def get_course_content(self, course_id: int) -> CourseContentResponse | None:
+        course = self.course_repo.get_by_id(course_id)
+        if not course:
+            return None
+
+        # если repo вернул dict/obj, а не pydantic
+        course_id_val = course["id"] if isinstance(course, dict) else course.id
+        course_title = course["title"] if isinstance(course, dict) else course.title
+        course_desc = course.get("description") if isinstance(course, dict) else getattr(course, "description", None)
+        course_status = course.get("status") if isinstance(course, dict) else getattr(course, "status", None)
+
+        modules = self.module_repo.get_by_course(course_id_val)
+        modules_out = []
+
+        for m in modules:
+            lessons = self.lesson_repo.get_by_module(m.id)
+            items = []
+
+            for l in lessons:
+                # enum -> value
+                content_type = getattr(l.content_type, "value", l.content_type)
+                lesson_type = getattr(l.lesson_type, "value", l.lesson_type)
+
+                content_url = getattr(l, "content_url", None)
+                if content_url and (content_url.startswith("/static/") or content_url.startswith("/uploads/")):
+                    content_url = f"{settings.SERVER_URL}{content_url}"
+
+                items.append(LessonItem(
+                    id=l.id,
+                    title=l.title,
+                    order=l.order,
+                    is_published=l.is_published,
+                    duration_minutes=l.duration_minutes,
+                    content_type=content_type,
+                    content_text=getattr(l, "content_text", None),
+                    content_url=content_url,
+                    lesson_type=lesson_type,
+                ))
+
+            items.sort(key=lambda x: x.order)
+
+            modules_out.append(ModuleContentResponse(
+                id=m.id,
+                course_id=m.course_id,
+                title=m.title,
+                description=getattr(m, "description", None),
+                order=getattr(m, "order", 0),
+                is_published=getattr(m, "is_published", True),
+                items=items,
+            ))
+
+        modules_out.sort(key=lambda x: x.order)
+
+        return CourseContentResponse(
+            id=course_id_val,
+            title=course_title,
+            description=course_desc,
+            status=course_status,
+            modules=modules_out,
+        )
 
     def _get_mock_enrollment_info(self, user_id: int, course_id: int) -> Dict[str, Any]:
         return {
