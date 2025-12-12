@@ -13,9 +13,9 @@ from schemas import (
 
 from services import CourseService
 from repositories import (
-    MockCourseRepository,
-    MockModuleRepository,
-    MockLessonRepository,
+    JsonCourseRepository,
+    JsonModuleRepository,
+    JsonLessonRepository,
 )
 from repositories.mock.enrollment_repository import EnrollmentRepository
 
@@ -24,9 +24,9 @@ router = APIRouter(prefix="/courses", tags=["Courses"])
 
 def get_course_service() -> CourseService:
     return CourseService(
-        course_repo=MockCourseRepository(),
-        module_repo=MockModuleRepository(),
-        lesson_repo=MockLessonRepository(),
+        course_repo=JsonCourseRepository(),
+        module_repo=JsonModuleRepository(),
+        lesson_repo=JsonLessonRepository(),
     )
 
 

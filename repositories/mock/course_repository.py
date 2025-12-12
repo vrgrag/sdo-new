@@ -6,8 +6,9 @@ import os
 
 from repositories.base import ICourseRepository
 from schemas import CourseResponse, CourseCreate, CourseUpdate, CourseStatus
-from .mock_data import MOCK_COURSES  # ← берем исходные данные только для первого запуска
 
+
+MOCK_COURSES = []
 
 DATA_FILE = "db/courses.json"
 os.makedirs("db", exist_ok=True)
@@ -29,9 +30,14 @@ def _save_courses_to_file(courses: list[dict]) -> None:
         json.dump(courses, f, ensure_ascii=False, indent=2)
 
 
-class MockCourseRepository(ICourseRepository):
+class JsonCourseRepository(ICourseRepository):
     def __init__(self):
         file_courses = _load_courses_from_file()
+
+        self._courses: dict[int, dict] = {c["id"]: c for c in file_courses} if file_courses else {}
+        self._id_counter = (max(self._courses.keys()) + 1) if self._courses else 1
+
+        _save_courses_to_file(list(self._courses.values()))
 
         if file_courses:
             self._courses: dict[int, dict] = {c["id"]: c for c in file_courses}

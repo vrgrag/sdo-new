@@ -1,5 +1,5 @@
 # schemas/users.py
-from pydantic import BaseModel, EmailStr, Field, validator
+from pydantic import BaseModel, EmailStr, Field, validator, field_validator
 from typing import Optional, List
 from datetime import date
 
@@ -27,7 +27,7 @@ class UserCreate(UserBase):
     group_ids: List[int] = Field(default_factory=list)
     program_ids: List[int] = Field(default_factory=list)
 
-    @validator("password_confirm")
+    @field_validator("password_confirm")
     def passwords_match(cls, v, values):
         if "password" in values and v != values["password"]:
             raise ValueError("Пароли не совпадают")

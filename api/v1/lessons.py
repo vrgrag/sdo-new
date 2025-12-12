@@ -6,25 +6,27 @@ from core.roles import UserRole
 
 from schemas import LessonResponse, LessonCreate, LessonUpdate
 from services import LessonService
-from repositories import MockLessonRepository, MockModuleRepository
+from repositories import JsonModuleRepository, JsonLessonRepository
 from repositories.mock.enrollment_repository import EnrollmentRepository
+from repositories.mock.lesson_repository import JsonLessonRepository
 
 router = APIRouter(prefix="/lessons", tags=["Lessons"])
 
 
 def get_lesson_service() -> LessonService:
-    return LessonService(lesson_repo=MockLessonRepository())
+    return LessonService(lesson_repo=JsonLessonRepository())
+
 
 def get_enrollment_repo() -> EnrollmentRepository:
     return EnrollmentRepository()
 
 def get_module_repo():
-    return MockModuleRepository()
+    return JsonModuleRepository()
 
 def check_lesson_access(
     lesson,
     current_user: dict,
-    module_repo: MockModuleRepository,
+    module_repo: JsonModuleRepository,
     enrollment_repo: EnrollmentRepository,
 ):
 
@@ -67,7 +69,7 @@ async def get_lessons(
     lesson_type: Optional[str] = Query(None),
 
     service: LessonService = Depends(get_lesson_service),
-    module_repo: MockModuleRepository = Depends(get_module_repo),
+    module_repo: JsonModuleRepository = Depends(get_module_repo),
     enrollment_repo: EnrollmentRepository = Depends(get_enrollment_repo),
     current_user: dict = Depends(get_current_user),
 ):
@@ -104,7 +106,7 @@ async def get_lesson(
     lesson_id: int,
 
     service: LessonService = Depends(get_lesson_service),
-    module_repo: MockModuleRepository = Depends(get_module_repo),
+    module_repo: JsonModuleRepository = Depends(get_module_repo),
     enrollment_repo: EnrollmentRepository = Depends(get_enrollment_repo),
     current_user: dict = Depends(get_current_user),
 ):

@@ -1,17 +1,34 @@
-# repositories/mock/lesson_repository.py
+import json
+import os
 from typing import List, Optional
-from schemas import LessonResponse, LessonCreate
-from repositories.base import ILessonRepository  # ← создадим ниже
-from .mock_data import get_lessons_by_module, MOCK_LESSONS
+
+from repositories.base import ILessonRepository
+from schemas import LessonResponse, LessonCreate, LessonUpdate
+
+DATA_FILE = "db/lessons.json"
+os.makedirs("db", exist_ok=True)
 
 
-class MockLessonRepository(ILessonRepository):
+def _load() -> list[dict]:
+    if not os.path.exists(DATA_FILE):
+        return []
+    with open(DATA_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _save(data: list[dict]):
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+class JsonLessonRepository(ILessonRepository):
+
     def get_all(
-            self,
-            module_id: Optional[int] = None,
-            lesson_type: Optional[str] = None
+        self,
+        module_id: Optional[int] = None,
+        lesson_type: Optional[str] = None
     ) -> List[LessonResponse]:
-        lessons = MOCK_LESSONS.copy()
+        lessons = _load()
 
         if module_id is not None:
             lessons = [l for l in lessons if l["module_id"] == module_id]
@@ -19,26 +36,50 @@ class MockLessonRepository(ILessonRepository):
         if lesson_type is not None:
             lessons = [l for l in lessons if l["lesson_type"] == lesson_type]
 
-        # Сортировка по module_id, затем по order
         lessons.sort(key=lambda x: (x["module_id"], x["order"]))
-        return [self._dict_to_response(l) for l in lessons]
+        return [LessonResponse(**l) for l in lessons]
 
     def get_by_id(self, lesson_id: int) -> Optional[LessonResponse]:
-        for lesson in MOCK_LESSONS:
-            if lesson["id"] == lesson_id:
-                return self._dict_to_response(lesson)
+        for l in _load():
+            if l["id"] == lesson_id:
+                return LessonResponse(**l)
         return None
 
-    def get_by_module(self, module_id: int) -> List[LessonResponse]:
-        """Вернуть все уроки для указанного модуля."""
-        lessons = get_lessons_by_module(module_id)
-        # сортировка по order
-        lessons.sort(key=lambda x: x["order"])
-        return [self._dict_to_response(l) for l in lessons]
+    def create(self, lesson: LessonCreate) -> LessonResponse:
+        lessons = _load()
+        new_id = max([l["id"] for l in lessons], default=0) + 1
 
-    def _dict_to_response(self, lesson_dict: dict) -> LessonResponse:
-        data = lesson_dict.copy()
-        for key in list(data.keys()):
-            if key not in LessonResponse.model_fields:
-                data.pop(key, None)
-        return LessonResponse(**data)
+        new_lesson = {
+            "id": new_id,
+            **lesson.model_dump()
+        }
+
+        lessons.append(new_lesson)
+        _save(lessons)
+        return LessonResponse(**new_lesson)
+
+    def update(
+        self,
+        lesson_id: int,
+        lesson_data: LessonUpdate
+    ) -> Optional[LessonResponse]:
+        lessons = _load()
+
+        for l in lessons:
+            if l["id"] == lesson_id:
+                for k, v in lesson_data.model_dump(exclude_unset=True).items():
+                    l[k] = v
+                _save(lessons)
+                return LessonResponse(**l)
+
+        return None
+
+    def delete(self, lesson_id: int) -> bool:
+        lessons = _load()
+        new_lessons = [l for l in lessons if l["id"] != lesson_id]
+
+        if len(new_lessons) == len(lessons):
+            return False
+
+        _save(new_lessons)
+        return True

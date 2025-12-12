@@ -1,7 +1,7 @@
 # services/lesson_service.py
 from typing import List, Optional
 from schemas import LessonResponse, LessonCreate, LessonUpdate
-from repositories import ILessonRepository, MockLessonRepository
+from repositories import ILessonRepository
 from core.config import settings
 
 class LessonService:
