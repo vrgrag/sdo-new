@@ -29,7 +29,7 @@ class LoginResponse(BaseModel):
 
 
 @router.post("/login", response_model=LoginResponse)
-def login(data: LoginRequest):
+async def login(data: LoginRequest):
     user = user_repository.get_by_login(data.login)
     if not user:
         raise HTTPException(

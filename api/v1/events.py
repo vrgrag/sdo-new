@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request
 from typing import List
 
 from core.security import get_current_user
@@ -72,10 +72,13 @@ async def get_event(
 
 @router.post("/", response_model=EventResponse, status_code=201)
 async def create_event(
+    request: Request,
     event_data: EventCreate,
     service: EventService = Depends(get_event_service),
     current_user: dict = Depends(get_current_user),
 ):
+    print(await request.body())
+
     if current_user["role"] not in (UserRole.ADMIN.value, UserRole.MANAGER.value):
         raise HTTPException(status_code=403, detail="Недостаточно прав")
 

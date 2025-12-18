@@ -1,7 +1,7 @@
 # api/v1/users.py
 from typing import List, Optional
 
-from fastapi import APIRouter, Query, HTTPException, Depends
+from fastapi import APIRouter, Query, HTTPException, Depends, Request
 
 from schemas.users import UserCreate, UserResponse, UserUpdate
 from services.user_service import user_service
@@ -11,7 +11,7 @@ from core.roles import UserRole
 router = APIRouter(prefix="/users", tags=["Пользователи"])
 
 @router.get("/", response_model=List[UserResponse])
-def get_users(
+async def get_users(
     search: Optional[str] = Query(None, description="Поиск по ФИО, логину или email"),
     role: Optional[UserRole] = Query(None, description="Фильтр по роли"),
     company_id: Optional[int] = Query(None, description="Фильтр по компании"),
@@ -44,29 +44,29 @@ def get_users(
     return users
 
 @router.post("/", response_model=UserResponse, status_code=201)
-def create_user(
+async def create_user(
+    request: Request,
     user_in: UserCreate,
     current_user: dict = Depends(get_current_user),
 ):
-
     if current_user["role"] not in (UserRole.ADMIN.value, UserRole.MANAGER.value):
         raise HTTPException(status_code=403, detail="Недостаточно прав")
 
     created = user_service.create_user(user_in.dict())
     return created
 @router.get("/me", response_model=UserResponse)
-def get_me(current_user: dict = Depends(get_current_user)):
+async def get_me(current_user: dict = Depends(get_current_user)):
     return current_user
 
 @router.get("/{user_id}", response_model=UserResponse)
-def get_user(
+async def get_user(
     user_id: int,
     current_user: dict = Depends(get_current_user),
 ):
     user = user_service.get_by_id(user_id, current_user)
     return user
 @router.patch("/{user_id}", response_model=UserResponse)
-def update_user(
+async def update_user(
     user_id: int,
     update_data: UserUpdate,
     current_user: dict = Depends(get_current_user),
@@ -79,7 +79,7 @@ def update_user(
     return updated
 
 @router.delete("/{user_id}")
-def delete_user(
+async def delete_user(
     user_id: int,
     current_user: dict = Depends(get_current_user),
 ):
