@@ -1,0 +1,72 @@
+version: '3.11'
+services:
+  postgres-sdo-prod:
+    container_name: postgres_sdo_prod
+    image: postgres:latest
+    env_file:
+      - .env
+    volumes:
+      - ./db_backup:/db_backup
+    expose:
+      - "5432"
+    ports:
+      - "5432:5432"
+    restart: always
+
+#  sdo-prod:
+#    container_name: sdo_prod
+#    build:
+#      context: .
+#      dockerfile: Dockerfile
+#    command: sh -c "pip3 install -r requirements.txt && daphne -b 0.0.0.0 -p 7070 student_portal.asgi:application --http-timeout 600"
+#    env_file:
+#      - .env
+#    volumes:
+#      - ./utils.py:/app/utils.py
+#      - /home/user/sdo/media:/app/media
+#      - ./authy:/app/authy
+#      - ./page:/app/page
+#      - ./events:/app/events
+#      - ./classroom:/app/classroom
+#      - ./student_portal:/app/student_portal
+#      - ./quiz:/app/quiz
+#      - ./direct:/app/direct
+#      - ./requirements.txt:/app/requirements.txt
+#      - ./logs:/app/logs
+#    depends_on:
+#      - postgres-sdo-prod
+#    restart: always
+#    ports:
+#      - "7070:7070"
+
+#  redis:
+#    image: redis:latest
+#    container_name: redis_sdo
+#    volumes:
+#      - ./redis.conf:/usr/local/etc/redis/redis.conf
+#    command: [ "redis-server", "/usr/local/etc/redis/redis.conf" ]
+#
+#    ports:
+#      - "6380:6380"
+#    restart: always
+#
+#  celery_worker:
+#    build: .
+#    command: sh -c "pip install openpyxl && celery -A student_portal worker --loglevel=info"
+#    volumes:
+#      - .:/app
+#    depends_on:
+#      - sdo-prod
+#      - redis
+#    restart: always
+#
+#  celery_beat:
+#    build: .
+#    command: sh -c "pip install openpyxl && celery -A student_portal beat --loglevel=info"
+#    volumes:
+#      - .:/app
+#    depends_on:
+#      - sdo-prod
+#      - redis
+#    restart: always
+#

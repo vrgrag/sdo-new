@@ -1,5 +1,15 @@
 import os
+from dotenv import load_dotenv
 import socket
+
+load_dotenv('../.env')
+
+POSTGRES_USER = os.getenv("POSTGRES_USER", "admin")
+POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "1234")
+POSTGRES_HOST = os.getenv("POSTGRES_HOST", "localhost")
+POSTGRES_PORT = os.getenv("POSTGRES_PORT", "5432")
+POSTGRES_DB = os.getenv("POSTGRES_DB", "postgres")
+DATABASE_URL=(f'postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}/{POSTGRES_DB}')
 
 def get_ip_address() -> str:
     """Определяет локальный IP-адрес (для dev)"""
