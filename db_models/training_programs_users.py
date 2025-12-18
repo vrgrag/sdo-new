@@ -16,3 +16,4 @@ id = Column(Integer, primary_key=True)
 create_at = Column(DateTime, default=datetime.now)
 user_id = Column(Integer, ForeignKey('users.id'))
 training_program_id = Column(Integer, ForeignKey('training_programs.id'))
+

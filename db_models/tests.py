@@ -15,8 +15,8 @@ from db.base import Base
 class Tests(Base):
     __tablename__ = 'tests'
     id = Column(Integer, primary_key=True)
-    title = Column(String)
-    description = Column(String)
+    title = Column(String(256),nullable=False)
+    description = Column(String(256))
     number_of_attempts = Column(Integer)
     created_at = Column(DateTime, default=datetime.now)
     time_limit_minutes = Column(Integer)

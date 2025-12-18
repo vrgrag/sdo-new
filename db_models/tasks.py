@@ -14,8 +14,8 @@ from db.base import Base
 class Tasks(Base):
     __tablename__ = 'tasks'
     id = Column(Integer, primary_key=True)
-    title = Column(String)
-    description = Column(String)
+    title = Column(String(256),nullable=False)
+    description = Column(String(256))
     status = Column(String)
     date_created = Column(DateTime, default=datetime.now)
     deadline = Column(DateTime)
