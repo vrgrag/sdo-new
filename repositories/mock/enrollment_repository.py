@@ -23,7 +23,6 @@ def _load() -> Dict:
         data["trainers"] = {}
 
     if "teachers" in data and isinstance(data["teachers"], dict):
-        # объединяем, не теряя данные
         for uid, course_ids in data["teachers"].items():
             data["trainers"].setdefault(uid, [])
             for cid in course_ids or []:
