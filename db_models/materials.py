@@ -16,6 +16,9 @@ class Materials(Base):
     __tablename__ = 'materials'
     id = Column(Integer, primary_key=True)
     title = Column(String(256), nullable=False)
-    number_of_pages = Column(Integer, nullable=False)
+    number_of_pages = Column(Integer)
     description = Column(Text, nullable=False)
-    file_path = Column(Text, nullable=False)
+    file_path = Column(String(256), nullable=False)
+
+    course_id = Column(Integer, ForeignKey('courses.id'))
+    course = relationship("Course", back_populates="materials")

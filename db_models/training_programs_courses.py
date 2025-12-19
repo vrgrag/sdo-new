@@ -16,3 +16,4 @@ class TrainingProgramCourse(Base):
     create_at = Column(DateTime, default=datetime.now)
     course_id = Column(Integer, ForeignKey('courses.id'))
     training_program_id = Column(Integer, ForeignKey('training_programs.id'))
+

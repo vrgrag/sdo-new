@@ -16,7 +16,7 @@ class Groups(Base):
     name = Column(String(256),nullable=False)
     description = Column(String(256))
     users_id = Column(Integer, ForeignKey('users.id'))
-    dedline = Column(DateTime)
+    deadline = Column(DateTime)
     course_id = Column(Integer, ForeignKey('courses.id'))
     create_at = Column(DateTime)
     passage_programs = Column(Boolean)

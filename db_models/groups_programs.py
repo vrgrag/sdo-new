@@ -18,4 +18,6 @@ class TrainingPrograms(Base):
     id = Column(Integer, primary_key=True)
     group_id = Column(Integer, ForeignKey('groups.id'))
     program_id = Column(Integer, ForeignKey('programs.id'))
-    
+
+    group = relationship("Group", back_populates="program_links")
+    program = relationship("TrainingProgram", back_populates="group_links")

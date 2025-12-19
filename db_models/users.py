@@ -27,3 +27,8 @@ class Users(Base):
     department_id = Column(Integer, ForeignKey('departments.id'))
     position_id = Column(Integer, ForeignKey('positions.id'))
     role_id = Column(Integer, ForeignKey('roles.id'))
+    training_programs = relationship(
+        "TrainingPrograms",
+        secondary="train_programs_users",
+        back_populates="users"
+    )

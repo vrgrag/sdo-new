@@ -12,9 +12,14 @@ from db.base import Base
 
 
 class TrainingPrograms(Base):
-    __tablename__ = 'programs'
+    __tablename__ = 'training_programs'
     id = Column(Integer, primary_key=True)
     title = Column(String(256),nullable=False)
     description = Column(String(256))
     created_by = Column(DateTime, default=datetime.now)
-    # organization_id = Column(Integer, ForeignKey("organizations.id"))
+    company_id = Column(Integer, ForeignKey("companies.id"))
+
+    company = relationship("Company", back_populates="programs")
+    user_links = relationship("TrainProgramUser", back_populates="program", cascade="all, delete-orphan")
+    course_links = relationship("TrainProgramCourse", back_populates="program", cascade="all, delete-orphan")
+    group_links = relationship("GroupProgram", back_populates="program", cascade="all, delete-orphan")

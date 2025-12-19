@@ -18,3 +18,7 @@ class GroupsCourses(Base):
     group_id = Column(Integer, ForeignKey('groups.id'))
     course_id = Column(Integer, ForeignKey('courses.id'))
     created_at = Column(DateTime, default=datetime.now)
+
+
+    group = relationship("Group", back_populates="course_links")
+    course = relationship("Course", back_populates="group_links")

@@ -17,3 +17,7 @@ class GroupsUsers(Base):
     id = Column(Integer, primary_key=True)
     group_id = Column(Integer, ForeignKey('groups.id'))
     user_id = Column(Integer, ForeignKey('users.id'))
+
+    group = relationship("Group", back_populates="user_links")
+    user = relationship("User", back_populates="group_links")
+

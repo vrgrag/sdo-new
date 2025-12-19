@@ -19,6 +19,9 @@ class Tasks(Base):
     status = Column(String)
     date_created = Column(DateTime, default=datetime.now)
     deadline = Column(DateTime)
-    asigened_to_user_id = Column(Integer, ForeignKey('users.id'))
+    assigned_to_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
     created_at = Column(DateTime, default=datetime.now)
-    created_by = relationship('Users', foreign_keys=[asigened_to_user_id])
+    created_by_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
+
+    assignee = relationship("User", back_populates="assigned_tasks", foreign_keys=[assigned_to_user_id])
+    creator = relationship("User", back_populates="created_tasks", foreign_keys=[created_by_id])

@@ -20,3 +20,7 @@ class Tests(Base):
     number_of_attempts = Column(Integer)
     created_at = Column(DateTime, default=datetime.now)
     time_limit_minutes = Column(Integer)
+    course_id = Column(Integer, ForeignKey('courses.id'))
+
+    course = relationship("Course", back_populates="department")
+    questions = relationship("Question", back_populates="course")
