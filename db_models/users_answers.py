@@ -18,5 +18,5 @@ class UserAnswer(Base):
     answered_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
 
     user = relationship("User")
-    question = relationship("Question", back_populates="user_answers")
-    selected_answer = relationship("Answer", back_populates="selected_in")
+    question = relationship("Question", back_populates="answers.id")
+    selected_answer = relationship("Answer", back_populates="answers.id")

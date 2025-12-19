@@ -12,12 +12,13 @@ from sqlalchemy.orm import relationship
 from db.base import Base
 
 
-class TrainingPrograms(Base):
-    __tablename__ = 'training_programs_users'
+class GroupProgram(Base):
+    __tablename__ = "groups_program"
 
     id = Column(Integer, primary_key=True)
-    group_id = Column(Integer, ForeignKey('groups.id'))
-    program_id = Column(Integer, ForeignKey('programs.id'))
+    groups_id = Column(Integer, ForeignKey("groups.id", ondelete="CASCADE"), nullable=False)
+    program_id = Column(Integer, ForeignKey("training_programs.id", ondelete="CASCADE"), nullable=False)
 
     group = relationship("Group", back_populates="program_links")
     program = relationship("TrainingProgram", back_populates="group_links")
+

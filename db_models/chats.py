@@ -1,6 +1,5 @@
 import enum
-
-from sqlalchemy import Column, Integer, Text
+from sqlalchemy import Column, Integer, Text, Enum
 from sqlalchemy.orm import relationship
 
 from db.base import Base
@@ -16,7 +15,7 @@ class Chat(Base):
 
     id = Column(Integer, primary_key=True)
     title = Column(Text, nullable=False)
-    status = Column(enum.Enum(ChatStatus, name="chat_status"), default=ChatStatus.active, nullable=False)
+    status = Column(Enum(ChatStatus, name="chat_status"), default=ChatStatus.active, nullable=False)
 
     messages = relationship("Message", back_populates="chat", cascade="all, delete-orphan")
 
