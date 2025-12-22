@@ -1,25 +1,23 @@
 from datetime import datetime
-from sqlalchemy import (
-Column,
-Integer,
-String,
-Text,
-DateTime,
-ForeignKey
-)
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
+from sqlalchemy.orm import relationship
+from datetime import datetime
 from db.base import Base
 
+class TrainingProgram(Base):
+    __tablename__ = "programs"
 
-class TrainingPrograms(Base):
-    __tablename__ = 'programs'
     id = Column(Integer, primary_key=True)
-    title = Column(String(256),nullable=False)
+    title = Column(String(256), nullable=False)
     description = Column(String(256))
-    created_by = Column(DateTime, default=datetime.now)
-    company_id = Column(Integer, ForeignKey("companies.id"))
+    created_by = Column(DateTime, default=datetime.utcnow)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=True)
 
     company = relationship("Company", back_populates="programs")
-    user_links = relationship("TrainProgramUser", back_populates="programs", cascade="all, delete-orphan")
-    course_links = relationship("TrainProgramCourse", back_populates="programs", cascade="all, delete-orphan")
-    group_links = relationship("GroupProgram", back_populates="programs", cascade="all, delete-orphan")
+
+    user_links = relationship("TrainingProgramsUsers", back_populates="program", cascade="all, delete-orphan")
+    course_links = relationship("TrainingProgramsCourses", back_populates="program", cascade="all, delete-orphan")
+    group_links = relationship("GroupProgram", back_populates="program", cascade="all, delete-orphan")
+

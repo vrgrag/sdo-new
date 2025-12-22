@@ -12,6 +12,6 @@ class Question(Base):
     question_text = Column(String)
     question_type = Column(String)
 
-    test = relationship("Test", back_populates="questions")
-    answer = relationship("Answer", back_populates="questions")
-    user_answer = relationship("UserAnswer", back_populates="questions")
+    test = relationship("Tests", back_populates="questions")
+    answers = relationship("Answer", back_populates="question", cascade="all, delete-orphan")
+    user_answers = relationship("UserAnswer", back_populates="question", cascade="all, delete-orphan")

@@ -23,5 +23,5 @@ class Tasks(Base):
     created_at = Column(DateTime, default=datetime.now)
     created_by_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
 
-    assignee = relationship("User", back_populates="assigned_tasks", foreign_keys=[assigned_to_user_id])
-    creator = relationship("User", back_populates="created_tasks", foreign_keys=[created_by_id])
+    assignee = relationship("Users", back_populates="assigned_tasks", foreign_keys=[assigned_to_user_id])
+    creator = relationship("Users", back_populates="created_tasks", foreign_keys=[created_by_id])

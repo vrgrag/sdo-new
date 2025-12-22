@@ -18,9 +18,9 @@ class Tests(Base):
     title = Column(String(256),nullable=False)
     description = Column(String(256))
     number_of_attempts = Column(Integer)
-    created_at = Column(DateTime, default=datetime.now)
+    created_at = Column(DateTime)
     time_limit_minutes = Column(Integer)
-    course_id = Column(Integer, ForeignKey('courses.id'))
+    course_id = Column(Integer, ForeignKey('courses.id'),nullable=True)
 
-    course = relationship("Course", back_populates="department")
-    questions = relationship("Question", back_populates="course")
+    course = relationship("Courses", back_populates="tests")
+    questions = relationship("Question", back_populates="test", cascade="all, delete-orphan")

@@ -20,3 +20,7 @@ class Groups(Base):
     course_id = Column(Integer, ForeignKey('courses.id'))
     create_at = Column(DateTime)
     passage_programs = Column(Boolean)
+
+    user_links = relationship("GroupsUsers", back_populates="group", cascade="all, delete-orphan")
+    course_links = relationship("GroupsCourses", back_populates="group", cascade="all, delete-orphan")
+    program_links = relationship("GroupProgram", back_populates="group", cascade="all, delete-orphan")

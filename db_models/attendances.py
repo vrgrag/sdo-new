@@ -17,4 +17,4 @@ class Attendance(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
 
     event = relationship("Event", back_populates="attendances")
-    user = relationship("User", back_populates="attendances")
+    user = relationship("Users", back_populates="attendances")

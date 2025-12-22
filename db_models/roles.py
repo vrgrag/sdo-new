@@ -7,4 +7,4 @@ class Role(Base):
     __tablename__ = 'roles'
     id = Column(Integer, primary_key=True)
     title = Column(String(256), nullable=False)
-    users = relationship("User", back_populates="role")
+    users = relationship("Users", back_populates="role")

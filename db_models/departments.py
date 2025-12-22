@@ -11,6 +11,6 @@ class Department(Base):
     company_id = Column(Integer, ForeignKey('companies.id'))
 
     company = relationship("Company", back_populates="departments")
-    users = relationship("User", back_populates="department")
+    users = relationship("Users", back_populates="department")
     courses_links = relationship("CourseDepartment", back_populates="department", cascade="all, delete-orphan")
 

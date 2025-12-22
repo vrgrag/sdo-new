@@ -8,7 +8,6 @@ class Answer(Base):
 
     id = Column(Integer, primary_key=True)
     question_id = Column(Integer, ForeignKey("questions.id", ondelete="CASCADE"), nullable=False)
-
     answer_text = Column(String, nullable=False)
     is_correct = Column(Boolean, default=False, nullable=False)
 

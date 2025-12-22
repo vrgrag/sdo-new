@@ -9,4 +9,4 @@ class Position(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String(256), nullable=False)
 
-    users = relationship("User", back_populates="position")
+    users = relationship("Users", back_populates="position")

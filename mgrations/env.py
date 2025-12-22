@@ -4,6 +4,9 @@ from sqlalchemy import pool
 from alembic import context
 from core.db import metadata
 from core.config import DATABASE_URL
+from db.base import Base
+import db_models  # <-- важно
+target_metadata = Base.metadata
 
 config = context.config
 config.set_main_option('sqlalchemy.url', DATABASE_URL)

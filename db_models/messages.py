@@ -18,5 +18,5 @@ class Message(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     chat_id = Column(Integer, ForeignKey("chat.id", ondelete="CASCADE"), nullable=False)
 
-    user = relationship("User", back_populates="messages")
+    user = relationship("Users", back_populates="messages")
     chat = relationship("Chat", back_populates="messages")

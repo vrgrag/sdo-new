@@ -20,7 +20,7 @@ class Event(Base):
     updated_date = Column(DateTime(timezone=True), onupdate=datetime.utcnow)
     create_date = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
 
-    trainer = relationship("User", back_populates="trainer_events", foreign_keys=[trainer_id])
+    trainer = relationship("Users", back_populates="trainer_events", foreign_keys=[trainer_id])
     attendances = relationship("Attendance", back_populates="event", cascade="all, delete-orphan")
 
 

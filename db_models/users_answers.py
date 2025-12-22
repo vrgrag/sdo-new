@@ -12,11 +12,10 @@ class UserAnswer(Base):
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     question_id = Column(Integer, ForeignKey("questions.id", ondelete="CASCADE"), nullable=False)
-    selected_answer_id = Column(Integer, ForeignKey("answer.id", ondelete="SET NULL"))
-
+    selected_answer_id = Column(Integer, ForeignKey("answers.id", ondelete="SET NULL"))
     is_correct = Column(Boolean, default=False, nullable=False)
-    answered_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    answered_at = Column(DateTime(timezone=True), nullable=False)
 
-    user = relationship("User")
-    question = relationship("Question", back_populates="answers.id")
-    selected_answer = relationship("Answer", back_populates="answers.id")
+    user = relationship("Users", back_populates="user_answers")
+    question = relationship("Question", back_populates="user_answers")
+    selected_answer = relationship("Answer", back_populates="selected_in")

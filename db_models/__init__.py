@@ -29,9 +29,9 @@ from db_models.groups_courses import GroupsCourses
 from db_models.groups_programs import GroupProgram
 
 # training programs
-from db_models.programs import TrainingPrograms
+from db_models.programs import TrainingProgram
 from db_models.training_programs_users import TrainingProgramsUsers
-from db_models.training_programs_courses import TrainingProgramCourse
+from db_models.training_programs_courses import TrainingProgramsCourses
 
 # tasks
 from db_models.tasks import Tasks

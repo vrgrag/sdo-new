@@ -16,9 +16,8 @@ class GroupsCourses(Base):
     __tablename__ = 'groups_courses'
     id = Column(Integer, primary_key=True)
     group_id = Column(Integer, ForeignKey('groups.id'))
-    course_id = Column(Integer, ForeignKey('courses.id'))
-    created_at = Column(DateTime, default=datetime.now)
+    course_id = Column(Integer, ForeignKey('courses.id'),nullable=True)
+    created_at = Column(DateTime)
 
-
-    group = relationship("Group", back_populates="course_links")
-    course = relationship("Course", back_populates="group_links")
+    group = relationship("Groups", back_populates="course_links")
+    course = relationship("Courses", back_populates="group_links")

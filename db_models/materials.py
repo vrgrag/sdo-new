@@ -20,5 +20,5 @@ class Materials(Base):
     description = Column(Text, nullable=False)
     file_path = Column(String(256), nullable=False)
 
-    course_id = Column(Integer, ForeignKey('courses.id'))
-    course = relationship("Course", back_populates="materials")
+    course_id = Column(Integer, ForeignKey("courses.id", ondelete="CASCADE"), nullable=False)
+    course = relationship("Courses", back_populates="materials")

@@ -25,10 +25,10 @@ class Courses(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=datetime.utcnow)
     deadline = Column(DateTime(timezone=True))
 
+    tests = relationship("Tests", back_populates="course")
+    materials = relationship("Materials", back_populates="course", cascade="all, delete-orphan")
 
-    tests = relationship("Tests", back_populates="courses")
-    materials = relationship("Materials", back_populates="courses")
-    group_links = relationship("GroupCourse", back_populates="course", cascade="all, delete-orphan")
+    group_links = relationship("GroupsCourses", back_populates="course", cascade="all, delete-orphan")
     companies_links = relationship("CourseCompany", back_populates="course", cascade="all, delete-orphan")
     departments_links = relationship("CourseDepartment", back_populates="course", cascade="all, delete-orphan")
-    program_links = relationship("TrainProgramCourse", back_populates="course", cascade="all, delete-orphan")
+    program_links = relationship("TrainingProgramsCourses", back_populates="course", cascade="all, delete-orphan")
