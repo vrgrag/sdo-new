@@ -1,8 +1,9 @@
-# api/v1/users.py
 from typing import List, Optional
 
 from fastapi import APIRouter, Query, HTTPException, Depends, Request
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.db import get_db
 from schemas.users import UserCreate, UserResponse, UserUpdate
 from services.user_service import user_service
 from core.security import get_current_user
@@ -13,13 +14,14 @@ router = APIRouter(prefix="/users", tags=["Пользователи"])
 @router.get("/", response_model=List[UserResponse])
 async def get_users(
     search: Optional[str] = Query(None, description="Поиск по ФИО, логину или email"),
-    role: Optional[UserRole] = Query(None, description="Фильтр по роли"),
+    role_id: Optional[int] = Query(None, description="Фильтр по role_id"),
     company_id: Optional[int] = Query(None, description="Фильтр по компании"),
     department_id: Optional[int] = Query(None, description="Фильтр по отделу"),
     position_id: Optional[int] = Query(None, description="Фильтр по должности"),
+    db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    users = user_service.get_visible_users(current_user)
+    users = await user_service.get_visible_users(db, current_user)
 
     if search:
         s = search.lower()
@@ -31,8 +33,8 @@ async def get_users(
             or s in (u.get("email") or "").lower()
         ]
 
-    if role:
-        users = [u for u in users if u.get("role") == role.value]
+    if role_id is not None:
+        users = [u for u in users if u.get("role_id") == role_id]
 
     if company_id is not None:
         users = [u for u in users if u.get("company_id") == company_id]
@@ -43,45 +45,50 @@ async def get_users(
 
     return users
 
+
 @router.post("/", response_model=UserResponse, status_code=201)
 async def create_user(
     request: Request,
     user_in: UserCreate,
+    db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    if current_user["role"] not in (UserRole.ADMIN.value, UserRole.MANAGER.value):
-        raise HTTPException(status_code=403, detail="Недостаточно прав")
+    return await user_service.create_user(db, user_in.model_dump(), current_user)
 
-    created = user_service.create_user(user_in.dict())
-    return created
+
 @router.get("/me", response_model=UserResponse)
 async def get_me(current_user: dict = Depends(get_current_user)):
     return current_user
 
+
 @router.get("/{user_id}", response_model=UserResponse)
 async def get_user(
     user_id: int,
+    db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    user = user_service.get_by_id(user_id, current_user)
-    return user
+    return await user_service.get_by_id(db, user_id, current_user)
+
+
 @router.patch("/{user_id}", response_model=UserResponse)
 async def update_user(
     user_id: int,
     update_data: UserUpdate,
+    db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    updated = user_service.update_user(
+    return await user_service.update_user(
+        db,
         user_id,
-        update_data.dict(exclude_unset=True),
+        update_data.model_dump(exclude_unset=True),
         current_user=current_user,
     )
-    return updated
+
 
 @router.delete("/{user_id}")
 async def delete_user(
     user_id: int,
+    db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    result = user_service.delete_user(user_id, current_user)
-    return result
+    return await user_service.delete_user(db, user_id, current_user)

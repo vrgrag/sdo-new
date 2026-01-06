@@ -1,9 +1,11 @@
 from fastapi import APIRouter, HTTPException, status, Depends
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.db import get_db
 from repositories.mock.user_repository import UserRepository
+from repositories.mock.role_repository import RoleRepository
+
 from core.security import verify_password, create_access_token
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -17,8 +19,11 @@ class LoginRequest(BaseModel):
 class LoginUserInfo(BaseModel):
     id: int
     login: str
-    role: str | None = None
     role_id: int | None = None
+    role: str | None = None
+    first_name: str
+    last_name: str
+    email: str
     first_name: str | None = None
     last_name: str | None = None
     email: str | None = None
@@ -31,47 +36,41 @@ class LoginResponse(BaseModel):
 
 
 @router.post("/login", response_model=LoginResponse)
-async def login(data: LoginRequest, db: Session = Depends(get_db)):
+async def login(data: LoginRequest, db: AsyncSession = Depends(get_db)):
     repo = UserRepository(db)
 
-    # login на фронте == email в БД
-    user = repo.get_by_login(data.login)
+    user = await repo.get_auth_user(data.login)
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Неправильный логин или пароль",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Неправильный логин или пароль")
 
-    password_hash = user.get("password_hash") or user.get("hashed_password")
-    if not password_hash or not verify_password(data.password, password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Неправильный логин или пароль",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    if not verify_password(data.password, user["password_hash"]):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Неправильный логин или пароль")
 
-    repo.update_last_login(user["id"])
+    await repo.update_last_login(user["id"])
+
+    role_title = None
+    if user.get("role_id") is not None:
+        role_repo = RoleRepository(db)
+        role_title = await role_repo.get_title_by_id(user["role_id"])
 
     access_token = create_access_token(
         {
-            "sub": user.get("email") or data.login,
-            "role": user.get("role") or user.get("role_id"),
+            "sub": str(user["id"]),
             "user_id": user["id"],
+            "role_id": user.get("role_id"),
+            "role": role_title,
         }
-    )
-
-    user_public = LoginUserInfo(
-        id=user["id"],
-        login=user.get("email") or data.login,
-        role=user.get("role"),
-        role_id=user.get("role_id"),
-        first_name=user.get("first_name"),
-        last_name=user.get("last_name"),
-        email=user.get("email"),
     )
 
     return LoginResponse(
         access_token=access_token,
-        user=user_public,
+        user=LoginUserInfo(
+            id=user["id"],
+            login=user.get("login") or user.get("email"),
+            role_id=user.get("role_id"),
+            role=role_title,
+            first_name=user.get("first_name"),
+            last_name=user.get("last_name"),
+            email=user.get("email"),
+        ),
     )

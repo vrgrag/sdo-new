@@ -11,6 +11,7 @@ from api.v1.lessons import router as lessons_router
 from api.v1.events import router as events_router
 from api.v1.users import router as users_router
 from api.v1.auth import router as auth_router
+from core.db import Base, engine
 
 app = FastAPI(
     title="Course Platform API",
@@ -46,6 +47,12 @@ app.mount(settings.STATIC_URL, StaticFiles(directory="static"), name="static")
 print(settings.UPLOADS_URL, "<<<<<<<<<<<<< MY UPLOADS URL")
 app.mount(settings.UPLOADS_URL, StaticFiles(directory="/home/vrgrag/sdo-new/uploads"), name="uploads")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+
+@app.on_event("startup")
+async def init_db():
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
 
 
 app.include_router(courses_router, tags=["Courses"])

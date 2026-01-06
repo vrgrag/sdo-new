@@ -1,17 +1,17 @@
 # schemas/users.py
-from pydantic import BaseModel, EmailStr, Field, validator, field_validator
-from typing import Optional, List
+from pydantic import BaseModel, EmailStr, Field, field_validator
+from typing import List, Optional
 from datetime import date
 
-from core.roles import UserRole
 
 
 class UserBase(BaseModel):
     login: str = Field(..., example="ivanov")
-    email: EmailStr = Field(..., example="ivanov@company.ru")
+    email: EmailStr = Field(..., example="ivanov@company.com")
     first_name: str = Field(..., example="Иван")
     last_name: str = Field(..., example="Иванов")
-    role: UserRole = Field(..., example="student")
+    role: str  = Field(..., example="admin")
+
 
 
 class UserCreate(UserBase):
@@ -28,8 +28,10 @@ class UserCreate(UserBase):
     program_ids: List[int] = Field(default_factory=list)
 
     @field_validator("password_confirm")
-    def passwords_match(cls, v, values):
-        if "password" in values and v != values["password"]:
+    @classmethod
+    def passwords_match(cls, v, info):
+        pw = info.data.get("password")
+        if pw is not None and v != pw:
             raise ValueError("Пароли не совпадают")
         return v
 
@@ -40,8 +42,7 @@ class UserUpdate(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
 
-    # Роль тоже Enum
-    role: Optional[UserRole] = Field(None, example="teacher")
+    role: Optional[int] = None
 
     company_id: Optional[int] = None
     department_id: Optional[int] = None
@@ -54,11 +55,12 @@ class UserUpdate(BaseModel):
     password: Optional[str] = Field(None, min_length=6)
     password_confirm: Optional[str] = Field(None, min_length=6)
 
-    @validator("password_confirm")
-    def passwords_match(cls, v, values):
-        if "password" in values and values["password"] is not None:
-            if v != values["password"]:
-                raise ValueError("Пароли не совпадают")
+    @field_validator("password_confirm")
+    @classmethod
+    def passwords_match(cls, v, info):
+        pw = info.data.get("password")
+        if pw is not None and v != pw:
+            raise ValueError("Пароли не совпадают")
         return v
 
 
@@ -68,9 +70,8 @@ class UserResponse(BaseModel):
     email: str
     first_name: str
     last_name: str
-
-    # ТУТ ТОЖЕ Enum!
-    role: UserRole
+    role: Optional[str] = None
+    role_id: Optional[int] = None
 
     company_id: Optional[int] = None
     department_id: Optional[int] = None
