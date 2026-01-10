@@ -1,66 +1,85 @@
-import json
-import os
-from typing import List, Optional
+from typing import List, Optional, Dict
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import IntegrityError
 
 from repositories.base import IModuleRepository
 from schemas import ModuleResponse, ModuleCreate, ModuleUpdate
-
-DATA_FILE = "db/modules.json"
-os.makedirs("db", exist_ok=True)
-
-
-def _load() -> list[dict]:
-    if not os.path.exists(DATA_FILE):
-        return []
-    try:
-        with open(DATA_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except json.JSONDecodeError:
-        return []
-
-
-def _save(data: list[dict]) -> None:
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+from models.modules import Modules
 
 
 class JsonModuleRepository(IModuleRepository):
-    def get_by_course(self, course_id: int) -> List[ModuleResponse]:
-        modules = [m for m in _load() if m.get("course_id") == course_id]
-        modules.sort(key=lambda x: x.get("order", 0))
-        return [ModuleResponse(**m) for m in modules]
+    def __init__(self, db: AsyncSession):
+        self.db = db
 
-    def get_by_id(self, module_id: int) -> Optional[ModuleResponse]:
-        for m in _load():
-            if m.get("id") == module_id:
-                return ModuleResponse(**m)
-        return None
+    def _to_response(self, module: Modules) -> ModuleResponse:
+        """Преобразует модель Modules в ModuleResponse"""
+        return ModuleResponse(
+            id=module.id,
+            course_id=module.course_id,
+            title=module.title,
+            description=module.description,
+            order=module.order,
+            is_published=module.is_published,
+            lessons=[]  # уроки будут добавляться отдельно при необходимости
+        )
 
-    # Если твой IModuleRepository не требует create/update/delete — можешь удалить эти методы.
-    def create(self, module_data: ModuleCreate) -> ModuleResponse:
-        modules = _load()
-        new_id = max([m.get("id", 0) for m in modules], default=0) + 1
-        module = {"id": new_id, **module_data.model_dump()}
-        modules.append(module)
-        _save(modules)
-        return ModuleResponse(**module)
+    async def get_by_course(self, course_id: int) -> List[ModuleResponse]:
+        stmt = (
+            select(Modules)
+            .where(Modules.course_id == course_id)
+            .order_by(Modules.order.asc())
+        )
+        res = await self.db.execute(stmt)
+        modules = res.scalars().all()
+        return [self._to_response(m) for m in modules]
 
-    def update(self, module_id: int, module_data: ModuleUpdate) -> Optional[ModuleResponse]:
-        modules = _load()
-        payload = module_data.model_dump(exclude_unset=True)
+    async def get_by_id(self, module_id: int) -> Optional[ModuleResponse]:
+        module = await self.db.get(Modules, module_id)
+        if not module:
+            return None
+        return self._to_response(module)
 
-        for m in modules:
-            if m.get("id") == module_id:
-                m.update(payload)
-                _save(modules)
-                return ModuleResponse(**m)
+    async def create(self, module_data: ModuleCreate) -> ModuleResponse:
+        module = Modules(
+            course_id=module_data.course_id,
+            title=module_data.title,
+            description=module_data.description,
+            order=module_data.order,
+            is_published=module_data.is_published,
+        )
+        self.db.add(module)
+        try:
+            await self.db.commit()
+        except IntegrityError:
+            await self.db.rollback()
+            raise
+        await self.db.refresh(module)
+        return self._to_response(module)
 
-        return None
+    async def update(self, module_id: int, module_data: ModuleUpdate) -> Optional[ModuleResponse]:
+        module = await self.db.get(Modules, module_id)
+        if not module:
+            return None
 
-    def delete(self, module_id: int) -> bool:
-        modules = _load()
-        new_modules = [m for m in modules if m.get("id") != module_id]
-        if len(new_modules) == len(modules):
+        update_data = module_data.model_dump(exclude_unset=True)
+        for key, value in update_data.items():
+            if value is not None:
+                setattr(module, key, value)
+
+        try:
+            await self.db.commit()
+        except IntegrityError:
+            await self.db.rollback()
+            raise
+
+        await self.db.refresh(module)
+        return self._to_response(module)
+
+    async def delete(self, module_id: int) -> bool:
+        module = await self.db.get(Modules, module_id)
+        if not module:
             return False
-        _save(new_modules)
+        await self.db.delete(module)
+        await self.db.commit()
         return True

@@ -1,8 +1,8 @@
-"""try to create db n3
+"""initial_schema
 
-Revision ID: f9b93936acbd
-Revises: efc4092d0cab
-Create Date: 2025-12-19 18:31:48.450325
+Revision ID: f3234635d239
+Revises: 
+Create Date: 2026-01-10 17:07:22.099868
 
 """
 from typing import Sequence, Union
@@ -12,8 +12,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'f9b93936acbd'
-down_revision: Union[str, Sequence[str], None] = 'efc4092d0cab'
+revision: str = 'f3234635d239'
+down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -36,8 +36,13 @@ def upgrade() -> None:
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('title', sa.String(length=100), nullable=False),
     sa.Column('description', sa.Text(), nullable=True),
-    sa.Column('status', sa.Boolean(), nullable=False),
+    sa.Column('short_description', sa.Text(), nullable=True),
+    sa.Column('status', sa.String(length=20), nullable=False),
     sa.Column('image', sa.String(), nullable=True),
+    sa.Column('duration_hours', sa.Integer(), nullable=False),
+    sa.Column('tags', sa.JSON(), nullable=True),
+    sa.Column('requirements', sa.JSON(), nullable=True),
+    sa.Column('what_you_learn', sa.JSON(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('deadline', sa.DateTime(timezone=True), nullable=True),
@@ -55,17 +60,33 @@ def upgrade() -> None:
     )
     op.create_table('courses_companies',
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('course_id', sa.Integer(), nullable=True),
-    sa.Column('company_id', sa.Integer(), nullable=True),
-    sa.ForeignKeyConstraint(['company_id'], ['companies.id'], ),
-    sa.ForeignKeyConstraint(['course_id'], ['courses.id'], ),
+    sa.Column('course_id', sa.Integer(), nullable=False),
+    sa.Column('company_id', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['company_id'], ['companies.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['course_id'], ['courses.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('departments',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('name', sa.String(length=256), nullable=False),
-    sa.Column('company_id', sa.Integer(), nullable=True),
-    sa.ForeignKeyConstraint(['company_id'], ['companies.id'], ),
+    sa.Column('company_id', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['company_id'], ['companies.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_table('lessons',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('course_id', sa.Integer(), nullable=False),
+    sa.Column('title', sa.String(length=256), nullable=False),
+    sa.Column('content_type', sa.String(length=50), nullable=False),
+    sa.Column('content_url', sa.String(length=512), nullable=True),
+    sa.Column('content_text', sa.Text(), nullable=True),
+    sa.Column('duration_minutes', sa.Integer(), nullable=False),
+    sa.Column('order', sa.Integer(), nullable=False),
+    sa.Column('lesson_type', sa.String(length=50), nullable=False),
+    sa.Column('is_published', sa.Boolean(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
+    sa.ForeignKeyConstraint(['course_id'], ['courses.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('materials',
@@ -74,8 +95,8 @@ def upgrade() -> None:
     sa.Column('number_of_pages', sa.Integer(), nullable=True),
     sa.Column('description', sa.Text(), nullable=False),
     sa.Column('file_path', sa.String(length=256), nullable=False),
-    sa.Column('course_id', sa.Integer(), nullable=True),
-    sa.ForeignKeyConstraint(['course_id'], ['courses.id'], ),
+    sa.Column('course_id', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['course_id'], ['courses.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('programs',
@@ -84,7 +105,7 @@ def upgrade() -> None:
     sa.Column('description', sa.String(length=256), nullable=True),
     sa.Column('created_by', sa.DateTime(), nullable=True),
     sa.Column('company_id', sa.Integer(), nullable=True),
-    sa.ForeignKeyConstraint(['company_id'], ['companies.id'], ),
+    sa.ForeignKeyConstraint(['company_id'], ['companies.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('tests',
@@ -92,26 +113,44 @@ def upgrade() -> None:
     sa.Column('title', sa.String(length=256), nullable=False),
     sa.Column('description', sa.String(length=256), nullable=True),
     sa.Column('number_of_attempts', sa.Integer(), nullable=True),
-    sa.Column('created_at', sa.DateTime(), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('time_limit_minutes', sa.Integer(), nullable=True),
-    sa.Column('course_id', sa.Integer(), nullable=True),
-    sa.ForeignKeyConstraint(['course_id'], ['courses.id'], ),
+    sa.Column('course_id', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['course_id'], ['courses.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
+    op.create_table('company_departments',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('company_id', sa.Integer(), nullable=False),
+    sa.Column('department_id', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['company_id'], ['companies.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['department_id'], ['departments.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('company_id', 'department_id', name='uq_company_departments_company_department')
+    )
     op.create_table('courses_department',
-    sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
-    sa.Column('course_id', sa.Integer(), nullable=True),
-    sa.Column('department_id', sa.Integer(), nullable=True),
-    sa.ForeignKeyConstraint(['course_id'], ['courses.id'], ),
-    sa.ForeignKeyConstraint(['department_id'], ['departments.id'], ),
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('course_id', sa.Integer(), nullable=False),
+    sa.Column('department_id', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['course_id'], ['courses.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['department_id'], ['departments.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
+    )
+    op.create_table('department_positions',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('position_id', sa.Integer(), nullable=False),
+    sa.Column('department_id', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['department_id'], ['departments.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['position_id'], ['positions.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('position_id', 'department_id', name='uq_department_positions_position_department')
     )
     op.create_table('questions',
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('test_id', sa.Integer(), nullable=True),
-    sa.Column('question_text', sa.String(), nullable=True),
-    sa.Column('question_type', sa.String(), nullable=True),
-    sa.ForeignKeyConstraint(['test_id'], ['tests.id'], ),
+    sa.Column('test_id', sa.Integer(), nullable=False),
+    sa.Column('question_text', sa.Text(), nullable=False),
+    sa.Column('question_type', sa.String(length=50), nullable=False),
+    sa.ForeignKeyConstraint(['test_id'], ['tests.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('training_programs_courses',
@@ -119,8 +158,8 @@ def upgrade() -> None:
     sa.Column('create_at', sa.DateTime(), nullable=True),
     sa.Column('course_id', sa.Integer(), nullable=True),
     sa.Column('training_program_id', sa.Integer(), nullable=True),
-    sa.ForeignKeyConstraint(['course_id'], ['courses.id'], ),
-    sa.ForeignKeyConstraint(['training_program_id'], ['programs.id'], ),
+    sa.ForeignKeyConstraint(['course_id'], ['courses.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['training_program_id'], ['programs.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('users',
@@ -129,6 +168,7 @@ def upgrade() -> None:
     sa.Column('last_name', sa.String(length=128), nullable=False),
     sa.Column('middle_name', sa.String(), nullable=True),
     sa.Column('email', sa.String(length=256), nullable=False),
+    sa.Column('login', sa.String(length=50), nullable=False),
     sa.Column('birth_date', sa.DateTime(), nullable=True),
     sa.Column('is_active', sa.Boolean(), nullable=True),
     sa.Column('password_hash', sa.String(length=256), nullable=False),
@@ -138,11 +178,15 @@ def upgrade() -> None:
     sa.Column('department_id', sa.Integer(), nullable=True),
     sa.Column('position_id', sa.Integer(), nullable=True),
     sa.Column('role_id', sa.Integer(), nullable=True),
+    sa.Column('hire_date', sa.Date(), nullable=True),
+    sa.Column('telegram_username', sa.String(length=128), nullable=True),
     sa.ForeignKeyConstraint(['company_id'], ['companies.id'], ondelete='SET NULL'),
     sa.ForeignKeyConstraint(['department_id'], ['departments.id'], ondelete='SET NULL'),
     sa.ForeignKeyConstraint(['position_id'], ['positions.id'], ondelete='SET NULL'),
     sa.ForeignKeyConstraint(['role_id'], ['roles.id'], ondelete='SET NULL'),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('login'),
+    sa.UniqueConstraint('telegram_username')
     )
     op.create_table('answers',
     sa.Column('id', sa.Integer(), nullable=False),
@@ -152,18 +196,35 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['question_id'], ['questions.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_table('event',
+    op.create_table('course_enrollments',
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('title', sa.String(length=100), nullable=False),
+    sa.Column('user_id', sa.Integer(), nullable=False),
+    sa.Column('course_id', sa.Integer(), nullable=False),
+    sa.Column('enrollment_type', sa.String(length=20), nullable=False),
+    sa.Column('enrolled_at', sa.DateTime(timezone=True), nullable=False),
+    sa.ForeignKeyConstraint(['course_id'], ['courses.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('user_id', 'course_id', 'enrollment_type', name='uq_user_course_type')
+    )
+    op.create_table('events',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('title', sa.String(length=255), nullable=False),
     sa.Column('description', sa.Text(), nullable=True),
     sa.Column('trainer_id', sa.Integer(), nullable=True),
-    sa.Column('event_date', sa.DateTime(timezone=True), nullable=True),
-    sa.Column('format_event', sa.String(length=50), nullable=True),
-    sa.Column('updated_date', sa.DateTime(timezone=True), nullable=True),
-    sa.Column('create_date', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('start_date', sa.Date(), nullable=False),
+    sa.Column('start_time', sa.Time(), nullable=False),
+    sa.Column('location', sa.String(length=255), nullable=True),
+    sa.Column('hours_count', sa.Integer(), nullable=True),
+    sa.Column('seats_count', sa.Integer(), nullable=True),
+    sa.Column('format', sa.String(length=50), nullable=True),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('company_id', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['company_id'], ['companies.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['trainer_id'], ['users.id'], ondelete='SET NULL'),
     sa.PrimaryKeyConstraint('id')
     )
+    op.create_index(op.f('ix_events_id'), 'events', ['id'], unique=False)
     op.create_table('groups',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('name', sa.String(length=256), nullable=False),
@@ -173,8 +234,8 @@ def upgrade() -> None:
     sa.Column('course_id', sa.Integer(), nullable=True),
     sa.Column('create_at', sa.DateTime(), nullable=True),
     sa.Column('passage_programs', sa.Boolean(), nullable=True),
-    sa.ForeignKeyConstraint(['course_id'], ['courses.id'], ),
-    sa.ForeignKeyConstraint(['users_id'], ['users.id'], ),
+    sa.ForeignKeyConstraint(['course_id'], ['courses.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['users_id'], ['users.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('message',
@@ -198,7 +259,9 @@ def upgrade() -> None:
     sa.Column('assigned_to_user_id', sa.Integer(), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.Column('created_by_id', sa.Integer(), nullable=True),
+    sa.Column('course_id', sa.Integer(), nullable=False),
     sa.ForeignKeyConstraint(['assigned_to_user_id'], ['users.id'], ondelete='SET NULL'),
+    sa.ForeignKeyConstraint(['course_id'], ['courses.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['created_by_id'], ['users.id'], ondelete='SET NULL'),
     sa.PrimaryKeyConstraint('id')
     )
@@ -218,7 +281,7 @@ def upgrade() -> None:
     sa.Column('invited', sa.Integer(), nullable=True),
     sa.Column('event_id', sa.Integer(), nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=False),
-    sa.ForeignKeyConstraint(['event_id'], ['event.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['event_id'], ['events.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
@@ -227,11 +290,11 @@ def upgrade() -> None:
     sa.Column('group_id', sa.Integer(), nullable=True),
     sa.Column('course_id', sa.Integer(), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=True),
-    sa.ForeignKeyConstraint(['course_id'], ['courses.id'], ),
-    sa.ForeignKeyConstraint(['group_id'], ['groups.id'], ),
+    sa.ForeignKeyConstraint(['course_id'], ['courses.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['group_id'], ['groups.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_table('groups_program',
+    op.create_table('groups_programs',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('groups_id', sa.Integer(), nullable=False),
     sa.Column('program_id', sa.Integer(), nullable=False),
@@ -243,8 +306,8 @@ def upgrade() -> None:
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('group_id', sa.Integer(), nullable=True),
     sa.Column('user_id', sa.Integer(), nullable=True),
-    sa.ForeignKeyConstraint(['group_id'], ['groups.id'], ),
-    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
+    sa.ForeignKeyConstraint(['group_id'], ['groups.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('user_answer',
@@ -267,22 +330,27 @@ def downgrade() -> None:
     # ### commands auto generated by Alembic - please adjust! ###
     op.drop_table('user_answer')
     op.drop_table('groups_users')
-    op.drop_table('groups_program')
+    op.drop_table('groups_programs')
     op.drop_table('groups_courses')
     op.drop_table('attendance')
     op.drop_table('training_programs_users')
     op.drop_table('tasks')
     op.drop_table('message')
     op.drop_table('groups')
-    op.drop_table('event')
+    op.drop_index(op.f('ix_events_id'), table_name='events')
+    op.drop_table('events')
+    op.drop_table('course_enrollments')
     op.drop_table('answers')
     op.drop_table('users')
     op.drop_table('training_programs_courses')
     op.drop_table('questions')
+    op.drop_table('department_positions')
     op.drop_table('courses_department')
+    op.drop_table('company_departments')
     op.drop_table('tests')
     op.drop_table('programs')
     op.drop_table('materials')
+    op.drop_table('lessons')
     op.drop_table('departments')
     op.drop_table('courses_companies')
     op.drop_table('roles')

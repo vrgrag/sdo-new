@@ -29,5 +29,6 @@ class Event(Base):
 
     company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
 
-    trainer = relationship("Users", back_populates="events_as_trainer")
+    trainer = relationship("Users",back_populates="trainer_events",foreign_keys=[trainer_id],)
     company = relationship("Company", back_populates="events")
+    attendances = relationship("Attendance", back_populates="event", cascade="all, delete-orphan")

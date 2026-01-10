@@ -1,57 +1,54 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from typing import List, Optional
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.security import get_current_user
 from core.roles import UserRole
+from core.db import get_db
 
 from schemas import LessonResponse, LessonCreate, LessonUpdate
 from services import LessonService
-from repositories import JsonModuleRepository, JsonLessonRepository
-from repositories.mock.enrollment_repository import EnrollmentRepository
 from repositories.mock.lesson_repository import JsonLessonRepository
+from repositories.mock.course_repository import JsonCourseRepository
+from repositories.mock.enrollment_repository import EnrollmentRepository
 
 router = APIRouter(prefix="/lessons", tags=["Lessons"])
 
 
-def get_lesson_service() -> LessonService:
-    return LessonService(lesson_repo=JsonLessonRepository())
+async def get_lesson_service(db: AsyncSession = Depends(get_db)) -> LessonService:
+    return LessonService(lesson_repo=JsonLessonRepository(db))
 
 
-def get_enrollment_repo() -> EnrollmentRepository:
-    return EnrollmentRepository()
+async def get_enrollment_repo(db: AsyncSession = Depends(get_db)) -> EnrollmentRepository:
+    return EnrollmentRepository(db)
 
-def get_module_repo():
-    return JsonModuleRepository()
 
-def check_lesson_access(
+async def get_course_repo(db: AsyncSession = Depends(get_db)) -> JsonCourseRepository:
+    return JsonCourseRepository(db)
+
+
+async def check_lesson_access(
     lesson,
     current_user: dict,
-    module_repo: JsonModuleRepository,
+    course_repo: JsonCourseRepository,
     enrollment_repo: EnrollmentRepository,
 ):
-
-
     role = current_user["role"]
     user_id = current_user["id"]
 
-
-    module = module_repo.get_by_id(lesson.module_id)
-    if not module:
-        raise HTTPException(status_code=404, detail="Модуль не найден")
-
-    course_id = module.course_id
+    course_id = lesson.course_id
 
     if role in (UserRole.ADMIN.value, UserRole.MANAGER.value):
         return
 
     if role == UserRole.TRAINER.value:
-        teacher_courses = enrollment_repo.get_courses_for_teacher(user_id)
+        teacher_courses = await enrollment_repo.get_courses_for_teacher(user_id)
         if course_id not in teacher_courses:
             raise HTTPException(status_code=403, detail="У вас нет доступа к уроку")
         return
 
     if role == UserRole.STUDENT.value:
-        student_courses = enrollment_repo.get_courses_for_student(user_id)
+        student_courses = await enrollment_repo.get_courses_for_student(user_id)
         if course_id not in student_courses:
             raise HTTPException(status_code=403, detail="У вас нет доступа к уроку")
 
@@ -65,15 +62,14 @@ def check_lesson_access(
 
 @router.get("/", response_model=List[LessonResponse])
 async def get_lessons(
-    module_id: Optional[int] = Query(None),
+    course_id: Optional[int] = Query(None),
     lesson_type: Optional[str] = Query(None),
 
     service: LessonService = Depends(get_lesson_service),
-    module_repo: JsonModuleRepository = Depends(get_module_repo),
     enrollment_repo: EnrollmentRepository = Depends(get_enrollment_repo),
     current_user: dict = Depends(get_current_user),
 ):
-    lessons = service.get_all_lessons(module_id=module_id, lesson_type=lesson_type)
+    lessons = await service.get_all_lessons(course_id=course_id, lesson_type=lesson_type)
 
     role = current_user["role"]
     user_id = current_user["id"]
@@ -81,20 +77,18 @@ async def get_lessons(
     filtered = []
 
     for lesson in lessons:
-        module = module_repo.get_by_id(lesson.module_id)
-        if not module:
-            continue
-
-        course_id = module.course_id
+        course_id = lesson.course_id
         if role in (UserRole.ADMIN.value, UserRole.MANAGER.value):
             filtered.append(lesson)
             continue
         if role == UserRole.TRAINER.value:
-            if course_id in enrollment_repo.get_courses_for_teacher(user_id):
+            teacher_courses = await enrollment_repo.get_courses_for_teacher(user_id)
+            if course_id in teacher_courses:
                 filtered.append(lesson)
             continue
         if role == UserRole.STUDENT.value:
-            if course_id in enrollment_repo.get_courses_for_student(user_id):
+            student_courses = await enrollment_repo.get_courses_for_student(user_id)
+            if course_id in student_courses:
                 if lesson.is_published:
                     filtered.append(lesson)
             continue
@@ -106,15 +100,15 @@ async def get_lesson(
     lesson_id: int,
 
     service: LessonService = Depends(get_lesson_service),
-    module_repo: JsonModuleRepository = Depends(get_module_repo),
+    course_repo: JsonCourseRepository = Depends(get_course_repo),
     enrollment_repo: EnrollmentRepository = Depends(get_enrollment_repo),
     current_user: dict = Depends(get_current_user),
 ):
-    lesson = service.get_lesson_by_id(lesson_id)
+    lesson = await service.get_lesson_by_id(lesson_id)
     if not lesson:
         raise HTTPException(status_code=404, detail="Урок не найден")
 
-    check_lesson_access(lesson, current_user, module_repo, enrollment_repo)
+    await check_lesson_access(lesson, current_user, course_repo, enrollment_repo)
 
     return lesson
 
@@ -128,7 +122,7 @@ async def create_lesson(
     if current_user["role"] not in (UserRole.ADMIN.value, UserRole.MANAGER.value):
         raise HTTPException(status_code=403, detail="Недостаточно прав")
 
-    return service.create_lesson(lesson_data)
+    return await service.create_lesson(lesson_data)
 
 @router.patch("/{lesson_id}", response_model=LessonResponse)
 async def update_lesson(
@@ -141,7 +135,7 @@ async def update_lesson(
     if current_user["role"] not in (UserRole.ADMIN.value, UserRole.MANAGER.value):
         raise HTTPException(status_code=403, detail="Недостаточно прав")
 
-    updated = service.update_lesson(lesson_id, lesson_data)
+    updated = await service.update_lesson(lesson_id, lesson_data)
     if not updated:
         raise HTTPException(status_code=404, detail="Урок не найден")
 
@@ -157,7 +151,7 @@ async def delete_lesson(
     if current_user["role"] not in (UserRole.ADMIN.value, UserRole.MANAGER.value):
         raise HTTPException(status_code=403, detail="Недостаточно прав")
 
-    success = service.delete_lesson(lesson_id)
+    success = await service.delete_lesson(lesson_id)
     if not success:
         raise HTTPException(status_code=404, detail="Урок не найден")
 

@@ -4,7 +4,7 @@ from .common import ContentType, LessonType
 
 
 class LessonBase(BaseModel):
-    module_id: int
+    course_id: int
     title: str
 
     content_type: ContentType
@@ -22,7 +22,7 @@ class LessonCreate(LessonBase):
 
 
 class LessonUpdate(BaseModel):
-    module_id: Optional[int] = None
+    course_id: Optional[int] = None
     title: Optional[str] = None
     content_type: Optional[ContentType] = None
     content_url: Optional[str] = None

@@ -11,6 +11,15 @@ from api.v1.lessons import router as lessons_router
 from api.v1.events import router as events_router
 from api.v1.users import router as users_router
 from api.v1.auth import router as auth_router
+from api.v1.companies import router as companies_router
+from api.v1.departments import router as departments_router
+from api.v1.positions import router as positions_router
+from api.v1.tests import router as tests_router
+from api.v1.questions import router as questions_router
+from api.v1.answers import router as answers_router
+from api.v1.user_answers import router as user_answers_router
+from api.v1.tasks import router as tasks_router
+from api.v1.materials import router as materials_router
 from core.db import Base, engine
 
 app = FastAPI(
@@ -42,6 +51,11 @@ app.add_middleware(
 for dir_name in ["static", "uploads"]:
     os.makedirs(dir_name, exist_ok=True)
 
+# Создаем структуру подпапок для uploads
+uploads_subdirs = ["docs", "photos", "videos", "pdfs", "audio", "other"]
+for subdir in uploads_subdirs:
+    uploads_subdir_path = os.path.join("uploads", subdir)
+    os.makedirs(uploads_subdir_path, exist_ok=True)
 
 app.mount(settings.STATIC_URL, StaticFiles(directory="static"), name="static")
 print(settings.UPLOADS_URL, "<<<<<<<<<<<<< MY UPLOADS URL")
@@ -60,6 +74,15 @@ app.include_router(lessons_router, tags=["Lessons"])
 app.include_router(auth_router)
 app.include_router(events_router)
 app.include_router(users_router)
+app.include_router(companies_router)
+app.include_router(departments_router)
+app.include_router(positions_router)
+app.include_router(tests_router, tags=["Tests"])
+app.include_router(questions_router, tags=["Questions"])
+app.include_router(answers_router, tags=["Answers"])
+app.include_router(user_answers_router, tags=["UserAnswers"])
+app.include_router(tasks_router, tags=["Tasks"])
+app.include_router(materials_router, tags=["Materials"])
 @app.get("/", include_in_schema=False)
 async def root():
     return {

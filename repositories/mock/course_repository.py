@@ -1,184 +1,173 @@
 # 📁 repositories/mock/course_repository.py
 from datetime import datetime
 from typing import List, Optional
-import json
-import os
+from sqlalchemy import select, or_, func
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import IntegrityError
 
 from repositories.base import ICourseRepository
 from schemas import CourseResponse, CourseCreate, CourseUpdate, CourseStatus
-
-
-MOCK_COURSES = []
-
-DATA_FILE = "db/courses.json"
-os.makedirs("db", exist_ok=True)
-
-
-def _load_courses_from_file() -> list[dict]:
-    if not os.path.exists(DATA_FILE):
-        return []
-
-    try:
-        with open(DATA_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except json.JSONDecodeError:
-        return []
-
-
-def _save_courses_to_file(courses: list[dict]) -> None:
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(courses, f, ensure_ascii=False, indent=2)
+from models.courses import Courses
 
 
 class JsonCourseRepository(ICourseRepository):
-    def __init__(self):
-        file_courses = _load_courses_from_file()
-
-        self._courses: dict[int, dict] = {c["id"]: c for c in file_courses} if file_courses else {}
-        self._id_counter = (max(self._courses.keys()) + 1) if self._courses else 1
-
-        _save_courses_to_file(list(self._courses.values()))
-
-        if file_courses:
-            self._courses: dict[int, dict] = {c["id"]: c for c in file_courses}
-            self._id_counter = max(self._courses.keys()) + 1
-        else:
-
-            self._courses = {}
-            for course in MOCK_COURSES:
-                c = course.copy()
-
-                for field in ("created_at", "updated_at"):
-                    if isinstance(c.get(field), datetime):
-                        c[field] = c[field].isoformat()
-
-                self._courses[c["id"]] = c
-
-            if self._courses:
-                self._id_counter = max(self._courses.keys()) + 1
-            else:
-                self._id_counter = 1
-
-            _save_courses_to_file(list(self._courses.values()))
+    def __init__(self, db: AsyncSession):
+        self.db = db
 
 
-    def get_all(
+    def _to_response(self, course: Courses) -> CourseResponse:
+        """Преобразует модель Courses в CourseResponse"""
+        # Преобразуем статус из строки в enum
+        status_value = course.status if isinstance(course.status, str) else (
+            CourseStatus.PUBLISHED.value if course.status else CourseStatus.DRAFT.value
+        )
+        try:
+            status = CourseStatus(status_value)
+        except ValueError:
+            status = CourseStatus.DRAFT
+
+        return CourseResponse(
+            id=course.id,
+            title=course.title,
+            description=course.description or "",
+            short_description=course.short_description,
+            image_url=course.image,
+            duration_hours=course.duration_hours or 0,
+            tags=course.tags if course.tags else [],
+            requirements=course.requirements if course.requirements else [],
+            what_you_learn=course.what_you_learn if course.what_you_learn else [],
+            status=status,
+        )
+
+    async def get_all(
             self,
             status: Optional[CourseStatus] = None,
             limit: int = 20,
             offset: int = 0,
             search: Optional[str] = None
     ) -> List[CourseResponse]:
-        courses = list(self._courses.values())
+        stmt = select(Courses)
 
+        # Фильтр по статусу
         if status is not None:
-            courses = [c for c in courses if c.get("status") == status.value]
+            stmt = stmt.where(Courses.status == status.value)
 
+        # Поиск
         if search:
-            q = search.lower()
-            courses = [
-                c for c in courses
-                if q in c.get("title", "").lower()
-                or q in (c.get("description") or "").lower()
-            ]
+            search_lower = search.lower()
+            stmt = stmt.where(
+                or_(
+                    func.lower(Courses.title).contains(search_lower),
+                    func.lower(Courses.description).contains(search_lower),
+                )
+            )
 
-        courses.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+        # Сортировка по дате создания (новые первые)
+        stmt = stmt.order_by(Courses.created_at.desc())
 
-        paginated = courses[offset:offset + limit]
-        return [self._dict_to_response(c) for c in paginated]
+        # Пагинация
+        stmt = stmt.limit(limit).offset(offset)
 
-    def get_by_id(self, course_id: int) -> Optional[CourseResponse]:
-        course_dict = self._courses.get(course_id)
-        if course_dict is None:
+        res = await self.db.execute(stmt)
+        courses = res.scalars().all()
+        return [self._to_response(c) for c in courses]
+
+    async def get_by_id(self, course_id: int) -> Optional[CourseResponse]:
+        course = await self.db.get(Courses, course_id)
+        if not course:
             return None
-        return self._dict_to_response(course_dict)
+        return self._to_response(course)
 
 
-    def create(self, course_data: CourseCreate) -> CourseResponse:
-        now = datetime.now().isoformat()
+    async def create(self, course_data: CourseCreate) -> CourseResponse:
+        now = datetime.utcnow()
 
-        course_id = self._id_counter
-        self._id_counter += 1
+        course = Courses(
+            title=course_data.title,
+            description=course_data.description,
+            short_description=course_data.short_description,
+            status=CourseStatus.DRAFT.value,  # при создании — черновик
+            image=course_data.image_url,
+            duration_hours=course_data.duration_hours or 0,
+            tags=course_data.tags or [],
+            requirements=course_data.requirements or [],
+            what_you_learn=course_data.what_you_learn or [],
+            created_at=now,
+            updated_at=now,
+        )
 
-        course_dict = {
-            "id": course_id,
-            "title": course_data.title,
-            "description": course_data.description,
-            "short_description": course_data.short_description,
-            "status": CourseStatus.DRAFT.value,  # при создании — черновик
-            "image_url": course_data.image_url,
-            "default_image_url": "/static/default_course_image.jpg",
-            "duration_hours": course_data.duration_hours or 0,
-            "created_by_id": 1,  # TODO: потом взять из current_user
-            "assigned_manager_id": None,
-            "created_at": now,
-            "updated_at": now,
-            "tags": course_data.tags or [],
-            "requirements": course_data.requirements or [],
-            "what_you_learn": course_data.what_you_learn or [],
-            "enrollment_status": "available",
-        }
-
-        self._courses[course_id] = course_dict
-        _save_courses_to_file(list(self._courses.values()))
-
-        return self._dict_to_response(course_dict)
+        self.db.add(course)
+        try:
+            await self.db.commit()
+        except IntegrityError:
+            await self.db.rollback()
+            raise
+        await self.db.refresh(course)
+        return self._to_response(course)
 
 
-    def update(self, course_id: int, course_data: CourseUpdate) -> Optional[CourseResponse]:
-        course_dict = self._courses.get(course_id)
-        if course_dict is None:
+    async def update(self, course_id: int, course_data: CourseUpdate) -> Optional[CourseResponse]:
+        course = await self.db.get(Courses, course_id)
+        if not course:
             return None
 
         update_data = course_data.model_dump(exclude_unset=True)
 
         for key, value in update_data.items():
-            if value is None:
+            if value is None and key not in ["short_description", "image_url"]:  # разрешаем None для опциональных полей
                 continue
 
             if key == "status" and isinstance(value, CourseStatus):
-                # в JSON храним строку
-                course_dict[key] = value.value
+                setattr(course, "status", value.value)
+            elif key == "image_url":
+                setattr(course, "image", value)
             else:
-                course_dict[key] = value
+                setattr(course, key, value)
 
-        course_dict["updated_at"] = datetime.now().isoformat()
-        self._courses[course_id] = course_dict
-        _save_courses_to_file(list(self._courses.values()))
+        course.updated_at = datetime.utcnow()
 
-        return self._dict_to_response(course_dict)
+        try:
+            await self.db.commit()
+        except IntegrityError:
+            await self.db.rollback()
+            raise
 
-    def delete(self, course_id: int) -> bool:
-        if course_id in self._courses:
-            del self._courses[course_id]
-            _save_courses_to_file(list(self._courses.values()))
-            return True
-        return False
+        await self.db.refresh(course)
+        return self._to_response(course)
 
-    def get_courses_by_trainer(self, trainer_id: int) -> List[dict]:
+    async def delete(self, course_id: int) -> bool:
+        course = await self.db.get(Courses, course_id)
+        if not course:
+            return False
+        await self.db.delete(course)
+        await self.db.commit()
+        return True
 
+    async def get_courses_by_trainer(self, trainer_id: int) -> List[dict]:
         from repositories.mock.enrollment_repository import EnrollmentRepository
 
-        enrollment_repo = EnrollmentRepository()
-        course_ids = enrollment_repo.get_courses_for_trainer(trainer_id)
+        enrollment_repo = EnrollmentRepository(self.db)
+        course_ids = await enrollment_repo.get_courses_for_trainer(trainer_id)
 
-        result: List[dict] = []
-        for cid in course_ids:
-            course = self._courses.get(cid)
-            if course:
-                result.append(course)
-        return result
+        if not course_ids:
+            return []
 
-    def get_courses_by_teacher(self, teacher_id: int) -> List[dict]:
-        return self.get_courses_by_trainer(teacher_id)
+        stmt = select(Courses).where(Courses.id.in_(course_ids))
+        res = await self.db.execute(stmt)
+        courses = res.scalars().all()
+        
+        return [self._to_response(c).model_dump() for c in courses]
 
-    def get_students_by_course(self, course_id: int) -> List[dict]:
+    async def get_courses_by_teacher(self, teacher_id: int) -> List[dict]:
+        return await self.get_courses_by_trainer(teacher_id)
 
+    async def get_students_by_course(self, course_id: int) -> List[dict]:
         from repositories.mock.enrollment_repository import EnrollmentRepository
-        from repositories.mock.user_repository import user_repository
+        from repositories.mock.user_repository import UserRepository
 
-        enrollment_repo = EnrollmentRepository()
-        all_users = user_repository.get_all()
+        enrollment_repo = EnrollmentRepository(self.db)
+        user_repo = UserRepository(self.db)
+        all_users = await user_repo.get_all()
 
         students_ids = set()
         for u in all_users:
@@ -187,16 +176,8 @@ class JsonCourseRepository(ICourseRepository):
             uid = u.get("id")
             if uid is None:
                 continue
-            if course_id in enrollment_repo.get_courses_for_student(uid):
+            student_courses = await enrollment_repo.get_courses_for_student(uid)
+            if course_id in student_courses:
                 students_ids.add(uid)
 
         return [u for u in all_users if u.get("id") in students_ids]
-
-    def _dict_to_response(self, course_dict: dict) -> CourseResponse:
-        data = course_dict.copy()
-
-        for key in list(data.keys()):
-            if key not in CourseResponse.model_fields:
-                data.pop(key, None)
-
-        return CourseResponse(**data)

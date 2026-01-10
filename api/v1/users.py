@@ -9,12 +9,13 @@ from services.user_service import user_service
 from core.security import get_current_user
 from core.roles import UserRole
 
-router = APIRouter(prefix="/users", tags=["Пользователи"])
+router = APIRouter(prefix="/users", tags=["Users"])
 
 @router.get("/", response_model=List[UserResponse])
 async def get_users(
     search: Optional[str] = Query(None, description="Поиск по ФИО, логину или email"),
-    role_id: Optional[int] = Query(None, description="Фильтр по role_id"),
+    role: Optional[str] = Query(None, description="Фильтр по роли (title). Можно указать несколько через запятую (например: admin,manager)"),
+    role_id: Optional[int] = Query(None, description="Фильтр по role_id (устаревший, используйте role)"),
     company_id: Optional[int] = Query(None, description="Фильтр по компании"),
     department_id: Optional[int] = Query(None, description="Фильтр по отделу"),
     position_id: Optional[int] = Query(None, description="Фильтр по должности"),
@@ -33,7 +34,15 @@ async def get_users(
             or s in (u.get("email") or "").lower()
         ]
 
-    if role_id is not None:
+    # Фильтрация по роли (title) - приоритетный способ
+    if role:
+        role_titles = [r.strip().lower() for r in role.split(",") if r.strip()]
+        users = [
+            u for u in users
+            if u.get("role") and u.get("role").lower() in role_titles
+        ]
+    # Фильтрация по role_id (для обратной совместимости)
+    elif role_id is not None:
         users = [u for u in users if u.get("role_id") == role_id]
 
     if company_id is not None:

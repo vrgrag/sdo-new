@@ -42,7 +42,7 @@ class UserUpdate(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
 
-    role: Optional[int] = None
+    role: Optional[str] = None
 
     company_id: Optional[int] = None
     department_id: Optional[int] = None

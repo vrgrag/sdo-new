@@ -13,7 +13,7 @@ class TrainingProgram(Base):
     title = Column(String(256), nullable=False)
     description = Column(String(256))
     created_by = Column(DateTime, default=datetime.utcnow)
-    company_id = Column(Integer, ForeignKey("companies.id"), nullable=True)
+    company_id = Column(Integer, ForeignKey("companies.id",  ondelete="CASCADE"), nullable=True)
 
     company = relationship("Company", back_populates="programs")
 

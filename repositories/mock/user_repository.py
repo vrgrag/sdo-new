@@ -157,7 +157,15 @@ class UserRepository:
             await self.db.rollback()
             raise
         await self.db.refresh(user_obj)
-        return _to_public_dict(user_obj)
+        
+        # Получаем роль по title после создания
+        role_title = None
+        if user_obj.role_id is not None:
+            stmt = select(Role.title).where(Role.id == user_obj.role_id).limit(1)
+            res = await self.db.execute(stmt)
+            role_title = res.scalar_one_or_none()
+        
+        return _to_public_dict(user_obj, role_title=role_title)
 
     async def update_user(self, user_id: int, update_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         user = await self.db.get(Users, user_id)
@@ -174,7 +182,15 @@ class UserRepository:
             raise
 
         await self.db.refresh(user)
-        return _to_public_dict(user)
+        
+        # Получаем роль по title после обновления
+        role_title = None
+        if user.role_id is not None:
+            stmt = select(Role.title).where(Role.id == user.role_id).limit(1)
+            res = await self.db.execute(stmt)
+            role_title = res.scalar_one_or_none()
+        
+        return _to_public_dict(user, role_title=role_title)
 
     async def delete_user(self, user_id: int) -> bool:
         user = await self.db.get(Users, user_id)
@@ -193,4 +209,12 @@ class UserRepository:
 
         await self.db.commit()
         await self.db.refresh(user)
-        return _to_public_dict(user)
+        
+        # Получаем роль по title
+        role_title = None
+        if user.role_id is not None:
+            stmt = select(Role.title).where(Role.id == user.role_id).limit(1)
+            res = await self.db.execute(stmt)
+            role_title = res.scalar_one_or_none()
+        
+        return _to_public_dict(user, role_title=role_title)

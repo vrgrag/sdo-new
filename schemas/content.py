@@ -18,21 +18,10 @@ class LessonItem(ModuleItemBase):
     lesson_type: str
 
 
-class ModuleContentResponse(BaseModel):
-    id: int
-    course_id: int
-    title: str
-    description: Optional[str] = None
-    order: int = 0
-    is_published: bool = True
-
-    items: List[LessonItem] = Field(default_factory=list)
-
-
 class CourseContentResponse(BaseModel):
     id: int
     title: str
     description: Optional[str] = None
     status: Optional[str] = None
 
-    modules: List[ModuleContentResponse] = Field(default_factory=list)
+    lessons: List[LessonItem] = Field(default_factory=list)

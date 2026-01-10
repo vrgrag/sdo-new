@@ -15,9 +15,9 @@ class Groups(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String(256),nullable=False)
     description = Column(String(256))
-    users_id = Column(Integer, ForeignKey('users.id'))
+    users_id = Column(Integer, ForeignKey('users.id',  ondelete="CASCADE"))
     deadline = Column(DateTime)
-    course_id = Column(Integer, ForeignKey('courses.id'))
+    course_id = Column(Integer, ForeignKey('courses.id',  ondelete="CASCADE"))
     create_at = Column(DateTime)
     passage_programs = Column(Boolean)
 

@@ -10,6 +10,7 @@ class Company(Base):
     __tablename__ = 'companies'
     id = Column(Integer, primary_key=True)
     name = Column(String(256), nullable=False)
+    department_links = relationship("CompanyDepartment", back_populates="company", cascade="all, delete-orphan")
     departments = relationship("Department", back_populates="company", cascade="all, delete-orphan")
     course_links = relationship("CourseCompany", back_populates="company", cascade="all, delete-orphan")
     programs = relationship("TrainingProgram", back_populates="company", cascade="all, delete-orphan")

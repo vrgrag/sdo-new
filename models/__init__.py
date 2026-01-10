@@ -11,9 +11,11 @@ from models.departments import Department
 from models.courses import Courses
 from models.courses_company import CourseCompany
 from models.courses_department import CourseDepartment
+from models.course_enrollments import CourseEnrollment
 
-# materials / modules
+# materials / lessons
 from models.materials import Materials
+from models.lessons import Lessons
 
 
 # tests
@@ -43,3 +45,6 @@ from models.messages import Message
 # events
 from models.events import Event
 from models.attendances import Attendance
+
+from models.department_positions import DepartmentPosition
+from models.company_departments import CompanyDepartment

@@ -21,9 +21,6 @@ class LoginUserInfo(BaseModel):
     login: str
     role_id: int | None = None
     role: str | None = None
-    first_name: str
-    last_name: str
-    email: str
     first_name: str | None = None
     last_name: str | None = None
     email: str | None = None

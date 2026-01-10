@@ -49,5 +49,7 @@ class Users(Base):
     attendances = relationship("Attendance", back_populates="user")
     trainer_events = relationship("Event", back_populates="trainer", foreign_keys="Event.trainer_id")
     user_answers = relationship("UserAnswer", back_populates="user", cascade="all, delete-orphan")
-    created_tasks = relationship("Tasks", back_populates="creator", foreign_keys="Tasks.created_by_id")
-    assigned_tasks = relationship("Tasks", back_populates="assignee", foreign_keys="Tasks.assigned_to_user_id")
+    
+    # course enrollments
+    course_enrollments = relationship("CourseEnrollment", back_populates="user", cascade="all, delete-orphan")
+

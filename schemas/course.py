@@ -1,7 +1,7 @@
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 from .common import CourseStatus
-from .module import ModuleResponse  # ← вложенность: курс → модули
+from .lesson import LessonResponse  # ← вложенность: курс → уроки
 
 
 class CourseBase(BaseModel):
@@ -39,5 +39,5 @@ class CourseResponse(CourseBase):
 
 
 class CourseDetailResponse(CourseResponse):
-    modules: List[ModuleResponse] = []
+    lessons: List[LessonResponse] = []
     enrollment_info: Optional[Dict[str, Any]] = None

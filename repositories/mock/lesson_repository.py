@@ -1,91 +1,134 @@
-import json
-import os
 from typing import List, Optional
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import IntegrityError
 
 from repositories.base import ILessonRepository
 from schemas import LessonResponse, LessonCreate, LessonUpdate
-
-DATA_FILE = "db/lessons.json"
-os.makedirs("db", exist_ok=True)
-
-
-def _load() -> list[dict]:
-    if not os.path.exists(DATA_FILE):
-        return []
-    with open(DATA_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def _save(data: list[dict]):
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+from schemas.common import ContentType, LessonType
+from models.lessons import Lessons
 
 
 class JsonLessonRepository(ILessonRepository):
+    def __init__(self, db: AsyncSession):
+        self.db = db
 
-    def get_all(
+    def _to_response(self, lesson: Lessons) -> LessonResponse:
+        """Преобразует модель Lessons в LessonResponse"""
+        # Преобразуем строки в enum
+        try:
+            content_type = ContentType(lesson.content_type)
+        except ValueError:
+            content_type = ContentType.TEXT
+
+        try:
+            lesson_type = LessonType(lesson.lesson_type)
+        except ValueError:
+            lesson_type = LessonType.THEORY
+
+        return LessonResponse(
+            id=lesson.id,
+            course_id=lesson.course_id,
+            title=lesson.title,
+            content_type=content_type,
+            content_url=lesson.content_url,
+            content_text=lesson.content_text,
+            duration_minutes=lesson.duration_minutes,
+            order=lesson.order,
+            lesson_type=lesson_type,
+            is_published=lesson.is_published,
+        )
+
+    async def get_all(
         self,
-        module_id: Optional[int] = None,
+        course_id: Optional[int] = None,
         lesson_type: Optional[str] = None
     ) -> List[LessonResponse]:
-        lessons = _load()
+        stmt = select(Lessons)
 
-        if module_id is not None:
-            lessons = [l for l in lessons if l["module_id"] == module_id]
+        if course_id is not None:
+            stmt = stmt.where(Lessons.course_id == course_id)
 
         if lesson_type is not None:
-            lessons = [l for l in lessons if l["lesson_type"] == lesson_type]
+            stmt = stmt.where(Lessons.lesson_type == lesson_type)
 
-        lessons.sort(key=lambda x: (x["module_id"], x["order"]))
-        return [LessonResponse(**l) for l in lessons]
+        stmt = stmt.order_by(Lessons.course_id.asc(), Lessons.order.asc())
 
-    def get_by_id(self, lesson_id: int) -> Optional[LessonResponse]:
-        for l in _load():
-            if l["id"] == lesson_id:
-                return LessonResponse(**l)
-        return None
+        res = await self.db.execute(stmt)
+        lessons = res.scalars().all()
+        return [self._to_response(l) for l in lessons]
 
-    def get_by_module(self, module_id: int) -> List[LessonResponse]:
-        lessons = _load()
-        lessons = [l for l in lessons if l.get("module_id") == module_id]
-        lessons.sort(key=lambda x: x.get("order", 0))
-        return [LessonResponse(**l) for l in lessons]
+    async def get_by_id(self, lesson_id: int) -> Optional[LessonResponse]:
+        lesson = await self.db.get(Lessons, lesson_id)
+        if not lesson:
+            return None
+        return self._to_response(lesson)
 
-    def create(self, lesson: LessonCreate) -> LessonResponse:
-        lessons = _load()
-        new_id = max([l["id"] for l in lessons], default=0) + 1
+    async def get_by_course(self, course_id: int) -> List[LessonResponse]:
+        stmt = (
+            select(Lessons)
+            .where(Lessons.course_id == course_id)
+            .order_by(Lessons.order.asc())
+        )
+        res = await self.db.execute(stmt)
+        lessons = res.scalars().all()
+        return [self._to_response(l) for l in lessons]
 
-        new_lesson = {
-            "id": new_id,
-            **lesson.model_dump()
-        }
+    async def create(self, lesson: LessonCreate) -> LessonResponse:
+        lesson_obj = Lessons(
+            course_id=lesson.course_id,
+            title=lesson.title,
+            content_type=lesson.content_type.value,
+            content_url=lesson.content_url,
+            content_text=lesson.content_text,
+            duration_minutes=lesson.duration_minutes,
+            order=lesson.order,
+            lesson_type=lesson.lesson_type.value,
+            is_published=lesson.is_published,
+        )
+        self.db.add(lesson_obj)
+        try:
+            await self.db.commit()
+        except IntegrityError:
+            await self.db.rollback()
+            raise
+        await self.db.refresh(lesson_obj)
+        return self._to_response(lesson_obj)
 
-        lessons.append(new_lesson)
-        _save(lessons)
-        return LessonResponse(**new_lesson)
-
-    def update(
+    async def update(
         self,
         lesson_id: int,
         lesson_data: LessonUpdate
     ) -> Optional[LessonResponse]:
-        lessons = _load()
+        lesson = await self.db.get(Lessons, lesson_id)
+        if not lesson:
+            return None
 
-        for l in lessons:
-            if l["id"] == lesson_id:
-                for k, v in lesson_data.model_dump(exclude_unset=True).items():
-                    l[k] = v
-                _save(lessons)
-                return LessonResponse(**l)
+        update_data = lesson_data.model_dump(exclude_unset=True)
+        for key, value in update_data.items():
+            if value is None:
+                continue
 
-        return None
+            if key == "content_type" and isinstance(value, ContentType):
+                setattr(lesson, key, value.value)
+            elif key == "lesson_type" and isinstance(value, LessonType):
+                setattr(lesson, key, value.value)
+            else:
+                setattr(lesson, key, value)
 
-    def delete(self, lesson_id: int) -> bool:
-        lessons = _load()
-        new_lessons = [l for l in lessons if l["id"] != lesson_id]
+        try:
+            await self.db.commit()
+        except IntegrityError:
+            await self.db.rollback()
+            raise
 
-        if len(new_lessons) == len(lessons):
+        await self.db.refresh(lesson)
+        return self._to_response(lesson)
+
+    async def delete(self, lesson_id: int) -> bool:
+        lesson = await self.db.get(Lessons, lesson_id)
+        if not lesson:
             return False
-
-        _save(new_lessons)
+        await self.db.delete(lesson)
+        await self.db.commit()
         return True

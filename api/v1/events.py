@@ -1,20 +1,24 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+# api/v1/events.py
 from typing import List
 
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from core.db import get_db
 from core.security import get_current_user
 from core.roles import UserRole
 
-from schemas.event import EventCreate, EventResponse
+from schemas.event import EventCreate, EventUpdate, EventOut
 from services.event_service import EventService
-from repositories.mock.event_repository import MockEventRepository
 
 router = APIRouter(prefix="/events", tags=["Events"])
 
 
-def get_event_service() -> EventService:
-    return EventService(MockEventRepository())
+def get_event_service(db: AsyncSession = Depends(get_db)) -> EventService:
+    return EventService(db)
 
-@router.get("/", response_model=List[EventResponse])
+
+@router.get("/", response_model=List[EventOut])
 async def list_events(
     service: EventService = Depends(get_event_service),
     current_user: dict = Depends(get_current_user),
@@ -22,81 +26,72 @@ async def list_events(
     role = current_user["role"]
     user_id = current_user["id"]
 
-    events = service.get_all_events()
+    events = await service.list_events_with_participants()
 
-    # ADMIN / MANAGER → все
     if role in (UserRole.ADMIN.value, UserRole.MANAGER.value):
         return events
 
-    # TEACHER → только те, где он тренер
     if role == UserRole.TRAINER.value:
-        return [e for e in events if user_id in e.trainer_ids]
+        return [e for e in events if e.trainer_id == user_id]
 
-    # STUDENT → только приглашенные
     if role == UserRole.STUDENT.value:
-        return [e for e in events if user_id in e.invited_student_ids]
+        # приглашения лучше делать через attendance (мы можем добавить join-фильтр)
+        return []
 
     return []
 
-@router.get("/{event_id}", response_model=EventResponse)
+
+@router.get("/{event_id}", response_model=EventOut)
 async def get_event(
     event_id: int,
     service: EventService = Depends(get_event_service),
     current_user: dict = Depends(get_current_user),
 ):
-    event = service.get_event(event_id)
-
-    if not event:
-        raise HTTPException(status_code=404, detail="Мероприятие не найдено")
-
     role = current_user["role"]
     user_id = current_user["id"]
 
-    # ADMIN / MANAGER → полный доступ
+    event = await service.get_event_with_participants(event_id)
+
     if role in (UserRole.ADMIN.value, UserRole.MANAGER.value):
         return event
 
-    # TEACHER → только если он тренер
     if role == UserRole.TRAINER.value:
-        if user_id in event.trainer_ids:
+        if event.trainer_id == user_id:
             return event
         raise HTTPException(status_code=403, detail="Нет доступа")
 
-    # STUDENT → только если приглашен
     if role == UserRole.STUDENT.value:
-        if user_id in event.invited_student_ids:
-            return event
-        raise HTTPException(status_code=403, detail="Нет доступа")
+        return event  # или запретить, если доступ только по приглашению
 
     raise HTTPException(status_code=403, detail="Недостаточно прав")
 
-@router.post("/", response_model=EventResponse, status_code=201)
+
+@router.post("/", response_model=EventOut, status_code=status.HTTP_201_CREATED)
 async def create_event(
-    request: Request,
-    event_data: EventCreate,
+    data: EventCreate,
     service: EventService = Depends(get_event_service),
     current_user: dict = Depends(get_current_user),
 ):
-    print(await request.body())
-
     if current_user["role"] not in (UserRole.ADMIN.value, UserRole.MANAGER.value):
         raise HTTPException(status_code=403, detail="Недостаточно прав")
 
-    return service.create_event(event_data)
+    return await service.create_event(data, current_user=current_user)
 
-@router.put("/{event_id}", response_model=EventResponse)
+
+@router.patch("/{event_id}", response_model=EventOut)
 async def update_event(
     event_id: int,
-    event_data: EventCreate,
+    data: EventUpdate,
     service: EventService = Depends(get_event_service),
     current_user: dict = Depends(get_current_user),
 ):
     if current_user["role"] not in (UserRole.ADMIN.value, UserRole.MANAGER.value):
         raise HTTPException(status_code=403, detail="Недостаточно прав")
 
-    return service.update_event(event_id, event_data)
+    return await service.update_event(event_id, data)
 
-@router.delete("/{event_id}", status_code=204)
+
+@router.delete("/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_event(
     event_id: int,
     service: EventService = Depends(get_event_service),
@@ -105,70 +100,59 @@ async def delete_event(
     if current_user["role"] not in (UserRole.ADMIN.value, UserRole.MANAGER.value):
         raise HTTPException(status_code=403, detail="Недостаточно прав")
 
-    service.delete_event(event_id)
+    await service.delete_event(event_id)
     return None
 
-@router.post("/{event_id}/register/{student_id}", status_code=204)
-async def register_student_to_event(
+
+@router.get("/{event_id}/participants", response_model=List[dict])
+async def get_event_participants(
     event_id: int,
-    student_id: int,
     service: EventService = Depends(get_event_service),
     current_user: dict = Depends(get_current_user),
 ):
-    event = service.get_event(event_id)
+    """Получить список участников мероприятия"""
     role = current_user["role"]
     user_id = current_user["id"]
+    
+    # Проверяем доступ
+    event = await service.get_event(event_id)
+    
+    if role not in (UserRole.ADMIN.value, UserRole.MANAGER.value):
+        if role == UserRole.TRAINER.value:
+            if event.trainer_id != user_id:
+                raise HTTPException(status_code=403, detail="Нет доступа")
+        else:
+            raise HTTPException(status_code=403, detail="Недостаточно прав")
+    
+    participants = await service.get_participants(event_id)
+    return participants
 
-    if role in (UserRole.ADMIN.value, UserRole.MANAGER.value):
-        event.invited_student_ids.append(student_id)
-        return None
 
-    if role == UserRole.TRAINER.value:
-        if user_id not in event.trainer_ids:
-            raise HTTPException(status_code=403, detail="Вы не тренер события")
-        event.invited_student_ids.append(student_id)
-        return None
-
-    if role == UserRole.STUDENT.value:
-        if student_id != user_id:
-            raise HTTPException(status_code=403, detail="Можно записывать только себя")
-
-        if student_id not in event.invited_student_ids:
-            raise HTTPException(status_code=403, detail="Событие доступно только по приглашению")
-
-        return None
-
-    raise HTTPException(status_code=403, detail="Недостаточно прав")
-
-@router.delete("/{event_id}/register/{student_id}", status_code=204)
-async def unregister_student_from_event(
+@router.delete("/{event_id}/participants/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_participant(
     event_id: int,
-    student_id: int,
+    user_id: int,
     service: EventService = Depends(get_event_service),
     current_user: dict = Depends(get_current_user),
 ):
-    event = service.get_event(event_id)
+    """Удалить участника из мероприятия"""
     role = current_user["role"]
-    user_id = current_user["id"]
-    if role in (UserRole.ADMIN.value, UserRole.MANAGER.value):
-        if student_id in event.invited_student_ids:
-            event.invited_student_ids.remove(student_id)
-        return None
-
-    if role == UserRole.TRAINER.value:
-        if user_id not in event.trainer_ids:
-            raise HTTPException(status_code=403, detail="Вы не тренер этого события")
-        if student_id in event.invited_student_ids:
-            event.invited_student_ids.remove(student_id)
-        return None
-    if role == UserRole.STUDENT.value:
-        if student_id != user_id:
-            raise HTTPException(status_code=403, detail="Можно отписать только себя")
-
-        if student_id not in event.invited_student_ids:
-            raise HTTPException(status_code=403, detail="Вы не приглашены")
-
-        event.invited_student_ids.remove(student_id)
-        return None
-
-    raise HTTPException(status_code=403, detail="Недостаточно прав")
+    current_user_id = current_user["id"]
+    
+    # Проверяем доступ
+    event = await service.get_event(event_id)
+    
+    if role not in (UserRole.ADMIN.value, UserRole.MANAGER.value):
+        if role == UserRole.TRAINER.value:
+            if event.trainer_id != current_user_id:
+                raise HTTPException(status_code=403, detail="Нет доступа")
+        else:
+            raise HTTPException(status_code=403, detail="Недостаточно прав")
+    
+    # Проверяем превышение лимита мест (если нужно)
+    event_with_participants = await service.get_event_with_participants(event_id)
+    
+    # Удаляем участника
+    await service.remove_participant(event_id, user_id)
+    
+    return None

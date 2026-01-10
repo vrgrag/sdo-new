@@ -13,7 +13,7 @@ class Attendance(Base):
     registered = Column(Integer)
     invited = Column(Integer)
 
-    event_id = Column(Integer, ForeignKey("event.id", ondelete="CASCADE"), nullable=False)
+    event_id = Column(Integer, ForeignKey("events.id", ondelete="CASCADE"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
 
     event = relationship("Event", back_populates="attendances")

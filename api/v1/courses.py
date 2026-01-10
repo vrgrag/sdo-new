@@ -1,8 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import List, Optional
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.security import get_current_user
 from core.roles import UserRole
+from core.db import get_db
 
 from schemas import (
     CourseResponse,
@@ -12,26 +14,22 @@ from schemas import (
 )
 
 from services import CourseService
-from repositories import (
-    JsonCourseRepository,
-    JsonModuleRepository,
-    JsonLessonRepository,
-)
+from repositories.mock.course_repository import JsonCourseRepository
+from repositories.mock.lesson_repository import JsonLessonRepository
 from repositories.mock.enrollment_repository import EnrollmentRepository
 from schemas.content import CourseContentResponse
 router = APIRouter(prefix="/courses", tags=["Courses"])
 
 
-def get_course_service() -> CourseService:
+async def get_course_service(db: AsyncSession = Depends(get_db)) -> CourseService:
     return CourseService(
-        course_repo=JsonCourseRepository(),
-        module_repo=JsonModuleRepository(),
-        lesson_repo=JsonLessonRepository(),
+        course_repo=JsonCourseRepository(db),
+        lesson_repo=JsonLessonRepository(db),
     )
 
 
-def get_enrollment_repo() -> EnrollmentRepository:
-    return EnrollmentRepository()
+async def get_enrollment_repo(db: AsyncSession = Depends(get_db)) -> EnrollmentRepository:
+    return EnrollmentRepository(db)
 
 
 @router.get("/", response_model=List[CourseResponse])
@@ -47,17 +45,56 @@ async def list_courses(
     user_id = current_user["id"]
     role = current_user["role"]
 
-    all_courses = service.get_all_courses(status, limit, offset, search)
+    all_courses = await service.get_all_courses(status, limit, offset, search)
 
     if role == UserRole.STUDENT.value:
-        allowed = set(enrollment_repo.get_courses_for_student(user_id))
+        allowed = set(await enrollment_repo.get_courses_for_student(user_id))
         return [c for c in all_courses if c.id in allowed]
 
     if role == UserRole.TRAINER.value:
-        allowed = set(enrollment_repo.get_courses_for_trainer(user_id))
+        allowed = set(await enrollment_repo.get_courses_for_trainer(user_id))
         return [c for c in all_courses if c.id in allowed]
 
     return all_courses
+
+
+@router.get("/my", response_model=List[CourseResponse])
+async def get_my_courses(
+    status: Optional[str] = Query(None),
+    search: Optional[str] = Query(None),
+    limit: int = Query(20),
+    offset: int = Query(0),
+    service: CourseService = Depends(get_course_service),
+    enrollment_repo: EnrollmentRepository = Depends(get_enrollment_repo),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Получить "мои курсы" в зависимости от роли:
+    - Администратор и менеджер: все курсы
+    - Тренер: только курсы, которые он ведет
+    - Студент: только курсы, куда он записан
+    """
+    user_id = current_user["id"]
+    role = current_user["role"]
+
+    all_courses = await service.get_all_courses(status, limit, offset, search)
+
+    # Администратор и менеджер видят все курсы
+    if role in (UserRole.ADMIN.value, UserRole.MANAGER.value):
+        return all_courses
+
+    # Тренер видит только курсы, которые он ведет
+    if role == UserRole.TRAINER.value:
+        allowed = set(await enrollment_repo.get_courses_for_trainer(user_id))
+        return [c for c in all_courses if c.id in allowed]
+
+    # Студент видит только курсы, куда он записан
+    if role == UserRole.STUDENT.value:
+        allowed = set(await enrollment_repo.get_courses_for_student(user_id))
+        return [c for c in all_courses if c.id in allowed]
+
+    # Если роль не определена, возвращаем пустой список
+    return []
 
 
 @router.get("/{course_id}", response_model=CourseDetailResponse)
@@ -70,16 +107,18 @@ async def course_detail(
     user_id = current_user["id"]
     role = current_user["role"]
 
-    course = service.get_course_detail(course_id, user_id)
+    course = await service.get_course_detail(course_id, user_id)
     if not course:
         raise HTTPException(status_code=404, detail="Курс не найден")
 
     if role == UserRole.STUDENT.value:
-        if course_id not in enrollment_repo.get_courses_for_student(user_id):
+        student_courses = await enrollment_repo.get_courses_for_student(user_id)
+        if course_id not in student_courses:
             raise HTTPException(status_code=403, detail="Нет доступа")
 
     if role == UserRole.TRAINER.value:
-        if course_id not in enrollment_repo.get_courses_for_trainer(user_id):
+        trainer_courses = await enrollment_repo.get_courses_for_trainer(user_id)
+        if course_id not in trainer_courses:
             raise HTTPException(status_code=403, detail="Нет доступа")
 
     return course
@@ -94,16 +133,18 @@ async def course_content(
     user_id = current_user["id"]
     role = current_user["role"]
 
-    data = service.get_course_content(course_id)
+    data = await service.get_course_content(course_id)
     if not data:
         raise HTTPException(status_code=404, detail="Курс не найден")
 
     if role == UserRole.STUDENT.value:
-        if course_id not in enrollment_repo.get_courses_for_student(user_id):
+        student_courses = await enrollment_repo.get_courses_for_student(user_id)
+        if course_id not in student_courses:
             raise HTTPException(status_code=403, detail="Нет доступа")
 
     if role == UserRole.TRAINER.value:
-        if course_id not in enrollment_repo.get_courses_for_trainer(user_id):
+        trainer_courses = await enrollment_repo.get_courses_for_trainer(user_id)
+        if course_id not in trainer_courses:
             raise HTTPException(status_code=403, detail="Нет доступа")
 
     return data
@@ -118,7 +159,7 @@ async def create_course(
     if current_user["role"] not in (UserRole.ADMIN.value, UserRole.MANAGER.value):
         raise HTTPException(status_code=403, detail="Недостаточно прав")
 
-    return service.create_course(course_data)
+    return await service.create_course(course_data)
 
 
 @router.patch("/{course_id}", response_model=CourseResponse)
@@ -131,11 +172,11 @@ async def update_course(
     if current_user["role"] not in (UserRole.ADMIN.value, UserRole.MANAGER.value):
         raise HTTPException(status_code=403, detail="Недостаточно прав")
 
-    updated = service.course_repo.update(course_id, course_data)
+    updated = await service.update_course(course_id, course_data)
     if not updated:
         raise HTTPException(status_code=404, detail="Курс не найден")
 
-    return service._enrich_course_response(updated)
+    return updated
 
 
 @router.delete("/{course_id}", status_code=204)
@@ -147,7 +188,7 @@ async def delete_course(
     if current_user["role"] not in (UserRole.ADMIN.value, UserRole.MANAGER.value):
         raise HTTPException(status_code=403, detail="Недостаточно прав")
 
-    deleted = service.course_repo.delete(course_id)
+    deleted = await service.delete_course(course_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Курс не найден")
 
@@ -165,14 +206,14 @@ async def assign_student(
     user_id = current_user["id"]
 
     if role in (UserRole.ADMIN.value, UserRole.MANAGER.value):
-        enrollment_repo.enroll_student(student_id, course_id)
+        await enrollment_repo.enroll_student(student_id, course_id)
         return None
 
     if role == UserRole.TRAINER.value:
-        trainer_courses = enrollment_repo.get_courses_for_trainer(user_id)
+        trainer_courses = await enrollment_repo.get_courses_for_trainer(user_id)
         if course_id not in trainer_courses:
             raise HTTPException(status_code=403, detail="Вы не являетесь тренером курса")
-        enrollment_repo.enroll_student(student_id, course_id)
+        await enrollment_repo.enroll_student(student_id, course_id)
         return None
 
     raise HTTPException(status_code=403, detail="Недостаточно прав")
@@ -188,5 +229,5 @@ async def assign_trainer(
     if current_user["role"] not in (UserRole.ADMIN.value, UserRole.MANAGER.value):
         raise HTTPException(status_code=403, detail="Недостаточно прав")
 
-    enrollment_repo.assign_trainer(trainer_id, course_id)
+    await enrollment_repo.assign_trainer(trainer_id, course_id)
     return None
